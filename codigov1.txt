@@ -1,0 +1,2166 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  MapPin, Truck, Package, Users, BarChart2, CheckCircle, Clock, Signature,
+  Camera, X, FileText, Plus, LocateFixed, GripVertical, Shuffle, UserPlus,
+  Pencil, Trash2, DollarSign, ChevronDown, ChevronUp, LogOut, LogIn, Settings,
+  ToggleLeft, ToggleRight, AlertTriangle, Printer,
+  Archive, // Icono para Recogidas
+  Mail, // Icono para Email
+  MessageSquare // Icono para WhatsApp
+} from 'lucide-react';
+
+// --- DATOS MOCK ---
+const initialClients = [
+  { id: 1, name: 'ElectroHogar S.L.', address: 'Calle Falsa 123, Madrid', phone: '34611223344', email: 'facturacion@electrohogar.es', billingType: 'monthly' },
+  { id: 2, name: 'ModaExpress', address: 'Avenida de la Industria 45, Barcelona', phone: '34622334455', email: 'pedidos@modaexpress.com', billingType: 'daily' },
+  { id: 3, name: 'Libros y Más', address: 'Plaza Nueva 1, Sevilla', phone: '34633445566', email: 'info@librosymas.es', billingType: 'monthly' },
+];
+
+const initialDrivers = [
+  { id: 101, name: 'Carlos Pérez', password: '123', vehicle: 'Furgoneta A', phone: '611223344', defaultZones: ['Madrid', 'Guadalajara'] },
+  { id: 102, name: 'Ana García', password: '456', vehicle: 'Furgoneta B', phone: '622334455', defaultZones: ['Barcelona', 'Girona', 'Tarragona'] },
+];
+
+const initialShipments = [
+  { id: 1001, clientId: 1, driverId: 101, origin: 'Almacén Central', destination: 'Calle Falsa 123, Madrid', status: 'En ruta', items: 2, collectedAmount: 0, recipient: 'Juan Pérez', signature: null, photo: null, priority: 'Normal', shippingPayer: 'remitente', observations: 'Entregar en portería.', shippingCost: 10.50, merchandisePhoto: null, deliveredAt: null, paymentNotes: null, senderPaymentCollectedAt: null, paymentCollectedBy: null },
+  { id: 1002, clientId: 2, driverId: null, origin: 'Centro Logístico', destination: 'Avenida de la Industria 45, Barcelona', status: 'Pendiente', items: 1, collectedAmount: 50.00, recipient: 'Sofía López', signature: null, photo: null, priority: 'Urgente', shippingPayer: 'destinatario', observations: '', shippingCost: 15.00, merchandisePhoto: null, deliveredAt: null, paymentNotes: null, senderPaymentCollectedAt: null, paymentCollectedBy: null },
+  { id: 1003, clientId: 3, driverId: 102, origin: 'Almacén Sur', destination: 'Plaza Nueva 1, Sevilla', status: 'Entregado', items: 5, collectedAmount: 0, recipient: 'Luis Torres', signature: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==', photo: null, priority: 'Baja', shippingPayer: 'remitente', observations: 'Cuidado, frágil.', shippingCost: 22.00, merchandisePhoto: null, deliveredAt: '2025-10-20T10:00:00.000Z', paymentNotes: null, senderPaymentCollectedAt: null, paymentCollectedBy: null },
+  { id: 1004, clientId: 1, driverId: 102, origin: 'Almacén Central', destination: 'Paseo de la Castellana 200, Madrid', status: 'Entregado', items: 1, collectedAmount: 25.50, recipient: 'Elena Moreno', signature: null, photo: null, priority: 'Urgente', shippingPayer: 'destinatario', observations: 'Dejar en el buzón si no hay nadie.', shippingCost: 8.75, merchandisePhoto: null, deliveredAt: '2025-10-21T12:00:00.000Z', paymentNotes: null, senderPaymentCollectedAt: null, paymentCollectedBy: null },
+  { id: 1005, clientId: 2, driverId: null, origin: 'Centro Logístico', destination: 'Calle Gran Vía 30, Madrid', status: 'Pendiente', items: 3, collectedAmount: 0, recipient: 'Pedro Martín', signature: null, photo: null, priority: 'Normal', shippingPayer: 'remitente', observations: '', shippingCost: 12.00, merchandisePhoto: null, deliveredAt: null, paymentNotes: null, senderPaymentCollectedAt: null, paymentCollectedBy: null },
+  { id: 1006, clientId: 1, driverId: 101, origin: 'Almacén Central', destination: 'Plaza Callao 2, Madrid', status: 'Incidencia', items: 1, collectedAmount: 0, recipient: 'Laura Gómez', signature: null, photo: null, priority: 'Normal', shippingPayer: 'remitente', observations: 'Dirección incorrecta.', shippingCost: 9.00, merchandisePhoto: null, deliveredAt: null, paymentNotes: null, senderPaymentCollectedAt: null, paymentCollectedBy: null },
+  { id: 1007, clientId: 2, driverId: 101, origin: 'Almacén Norte', destination: 'Calle Alcalá 100, Madrid', status: 'Cobro Pendiente', items: 1, collectedAmount: 30.00, recipient: 'Marcos Ruiz', signature: null, photo: null, priority: 'Normal', shippingPayer: 'destinatario', observations: 'Entregado, cobrará el lunes.', shippingCost: 7.00, merchandisePhoto: null, deliveredAt: '2025-10-22T09:30:00.000Z', paymentNotes: 'Cobrar el lunes', senderPaymentCollectedAt: null, paymentCollectedBy: null },
+];
+
+// NUEVOS DATOS MOCK PARA RECOGIDAS
+const initialPickups = [
+  { id: 2001, clientId: 1, driverId: 101, address: 'Calle Falsa 123, Madrid', items: 2, observations: 'Material de oficina', createdAt: '2025-10-22T09:15:00.000Z' },
+  { id: 2002, clientId: 2, driverId: 101, address: 'Avenida de la Industria 45, Barcelona', items: 5, observations: 'Cajas de ropa', createdAt: '2025-10-22T10:30:00.000Z' },
+  { id: 2003, clientId: 1, driverId: 101, address: 'Calle Falsa 123, Madrid', items: 1, observations: 'Devolución', createdAt: '2025-10-22T11:45:00.000Z' },
+];
+
+const initialRecipients = [
+  { id: 201, clientId: 1, name: 'Juan Pérez (Oficina)', address: 'Calle Falsa 123, Madrid' },
+  { id: 202, clientId: 1, name: 'Elena Moreno (Almacén)', address: 'Paseo de la Castellana 200, Madrid' },
+  { id: 203, clientId: 2, name: 'Sofía López (Tienda)', address: 'Avenida de la Industria 45, Barcelona' },
+  { id: 204, clientId: 3, name: 'Luis Torres (Librería)', address: 'Plaza Nueva 1, Sevilla' },
+  { id: 205, clientId: 2, name: 'Pedro Martín (Taller)', address: 'Calle Gran Vía 30, Madrid' },
+];
+
+// --- COMPONENTES AUXILIARES ---
+
+const Card = ({ children, className = '' }) => (
+  <div className={`bg-gray-800 shadow-lg rounded-xl p-6 ${className}`}>
+    {children}
+  </div>
+);
+
+const StatusBadge = ({ status }) => {
+  const statusStyles = {
+    'Pendiente': 'bg-yellow-500/20 text-yellow-400',
+    'En ruta': 'bg-blue-500/20 text-blue-400',
+    'Entregado': 'bg-green-500/20 text-green-400',
+    'Incidencia': 'bg-red-500/20 text-red-400',
+    'Cobro Pendiente': 'bg-purple-500/20 text-purple-400',
+  };
+  return (
+    <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusStyles[status] || 'bg-gray-500/20 text-gray-400'}`}>
+      {status}
+    </span>
+  );
+};
+
+const SearchableDropdown = ({ options, onSelect, value, onChange, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [wrapperRef]);
+
+  const filteredOptions = options.filter(option =>
+    option.label.toLowerCase().includes((value || '').toLowerCase())
+  );
+
+  const handleSelect = (option) => {
+    onSelect(option);
+    setIsOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <input
+        type="text"
+        value={value}
+        onChange={onChange}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+        className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500"
+        autoComplete="off"
+      />
+      {isOpen && filteredOptions.length > 0 && (
+        <ul className="absolute z-10 w-full bg-gray-800 border border-gray-600 rounded-lg mt-1 max-h-60 overflow-y-auto shadow-lg">
+          {filteredOptions.map(option => (
+            <li
+              key={option.value}
+              onClick={() => handleSelect(option)}
+              className="p-3 text-white hover:bg-blue-600 cursor-pointer transition-colors"
+            >
+              {option.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+const DriverModal = ({ onSave, onCancel, driverToEdit }) => {
+  const isEditing = driverToEdit && driverToEdit.id;
+
+  const [formData, setFormData] = useState({
+    name: '',
+    password: '',
+    vehicle: '',
+    phone: '',
+    defaultZones: '', // Comma separated
+  });
+
+  useEffect(() => {
+    if (isEditing) {
+      setFormData({
+        ...driverToEdit,
+        defaultZones: driverToEdit.defaultZones.join(', '),
+      });
+    } else {
+      setFormData({ name: '', password: '', vehicle: '', phone: '', defaultZones: '' });
+    }
+  }, [driverToEdit, isEditing]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const driverData = {
+      ...formData,
+      id: isEditing ? driverToEdit.id : undefined,
+      defaultZones: formData.defaultZones.split(',').map(zone => zone.trim()).filter(Boolean),
+    };
+    onSave(driverData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-lg relative">
+        <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
+        <h3 className="text-2xl font-bold mb-4 text-white">{isEditing ? 'Editar' : 'Crear'} Transportista</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Nombre (Usuario)</label>
+            <input type="text" name="name" value={formData.name} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Contraseña</label>
+            <input type="password" name="password" value={formData.password} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" />
+          </div>
+          <div className="flex space-x-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-400 mb-1">Vehículo</label>
+              <input type="text" name="vehicle" value={formData.vehicle} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-400 mb-1">Teléfono</label>
+              <input type="tel" name="phone" value={formData.phone} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Poblaciones por defecto (separadas por comas)</label>
+            <input type="text" name="defaultZones" value={formData.defaultZones} onChange={handleChange} placeholder="Ej: Madrid, Guadalajara, Toledo" className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" />
+          </div>
+          <div className="pt-4">
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg">
+              {isEditing ? 'Guardar Cambios' : 'Crear Transportista'}
+            </button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+};
+
+
+const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, recipients, drivers, onAddRecipient, currentUser }) => {
+  const isEditing = shipmentToEdit && shipmentToEdit.id;
+  const initialFormState = {
+    clientId: null,
+    clientName: '',
+    recipient: '',
+    destination: '',
+    poblacion: '',
+    items: 1,
+    collectedAmount: 0,
+    driverId: null,
+    shippingPayer: 'remitente',
+    observations: '',
+    shippingCost: '',
+    merchandisePhoto: null,
+    senderPaymentCollected: false,
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
+  const [saveNewRecipient, setSaveNewRecipient] = useState(false);
+  const [showSenderPayment, setShowSenderPayment] = useState(false);
+  const [showSenderPaymentAlert, setShowSenderPaymentAlert] = useState(false);
+  const [showSenderForgotAlert, setShowSenderForgotAlert] = useState(false); // New state for "forgot" alert
+  const merchandisePhotoInputRef = useRef(null);
+
+
+  useEffect(() => {
+    if (isEditing) {
+      const client = clients.find(c => c.id === shipmentToEdit.clientId);
+      const destinationParts = shipmentToEdit.destination.split(',');
+      const street = destinationParts[0]?.trim();
+      const city = destinationParts.length > 1 ? destinationParts.slice(1).join(',').trim() : '';
+
+      setFormData({
+        ...initialFormState,
+        ...shipmentToEdit,
+        clientName: client ? `${client.name} (Cliente)` : '',
+        destination: street,
+        poblacion: city,
+        senderPaymentCollected: !!shipmentToEdit.senderPaymentCollectedAt,
+      });
+    } else {
+      setFormData(initialFormState);
+    }
+  }, [shipmentToEdit, isOpen, clients]);
+
+  useEffect(() => {
+    if (formData.clientId && formData.shippingPayer === 'remitente') {
+      const client = clients.find(c => c.id === formData.clientId);
+      if (client && client.billingType === 'daily') {
+        setShowSenderPayment(true);
+      } else {
+        setShowSenderPayment(false);
+      }
+    } else {
+      setShowSenderPayment(false);
+    }
+  }, [formData.clientId, formData.shippingPayer, clients]);
+
+
+  const contactOptions = [
+    ...clients.map(c => ({
+      value: `client-${c.id}`,
+      label: `${c.name} (Cliente)`,
+      address: c.address,
+      clientId: c.id
+    })),
+    ...recipients.map(r => ({
+      value: `recipient-${r.id}`,
+      label: r.name,
+      address: r.address,
+      clientId: r.clientId
+    }))
+  ];
+
+  const isNewRecipient = formData.recipient && !recipients.some(r => r.name === formData.recipient) && !clients.some(c => `${c.name} (Cliente)` === formData.recipient);
+
+  const handleClientSelect = (option) => {
+    setFormData(prev => ({
+      ...prev,
+      clientId: option.clientId,
+      clientName: option.label
+    }));
+  };
+
+  const handleRecipientSelect = (option) => {
+    setFormData(prev => {
+      const destinationParts = option.address.split(',');
+      const street = destinationParts[0]?.trim();
+      const city = destinationParts.length > 1 ? destinationParts.slice(1).join(',').trim() : '';
+
+      const newState = { ...prev, recipient: option.label, destination: street, poblacion: city };
+      if (!prev.clientId) { // Auto-fill client if not already set
+        const client = clients.find(c => c.id === option.clientId);
+        if (client) {
+          newState.clientId = client.id;
+          newState.clientName = `${client.name} (Cliente)`;
+        }
+      }
+      return newState;
+    });
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePhotoUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setFormData(prev => ({ ...prev, merchandisePhoto: e.target.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      // Use custom alert later
+      console.error("La geolocalización no es compatible con tu navegador.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const locationString = `${latitude}, ${longitude}`;
+        setFormData(prev => ({...prev, destination: locationString}));
+      },
+      (error) => { console.error("No se pudo obtener la ubicación."); }
+    );
+  };
+
+  const handleViewOnMap = () => {
+    if (!formData.destination) return;
+    const fullDestination = [formData.destination, formData.poblacion].filter(Boolean).join(', ');
+    const encodedAddress = encodeURIComponent(fullDestination);
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+    window.open(mapsUrl, '_blank');
+  };
+
+  const runSave = () => {
+    if (saveNewRecipient && isNewRecipient) {
+      const newRecipient = {
+        id: Date.now() + 1000,
+        clientId: formData.clientId,
+        name: formData.recipient,
+        address: [formData.destination, formData.poblacion].filter(Boolean).join(', '),
+      };
+      onAddRecipient(newRecipient);
+    }
+
+    const fullDestination = [formData.destination, formData.poblacion].filter(Boolean).join(', ');
+
+    const shipmentData = {
+      ...formData,
+      destination: fullDestination,
+      id: isEditing ? shipmentToEdit.id : undefined,
+      items: parseInt(formData.items, 10) || 1,
+      shippingCost: parseFloat(formData.shippingCost) || 0,
+      collectedAmount: parseFloat(formData.collectedAmount) || 0,
+      priority: formData.priority || 'Normal',
+      senderPaymentCollectedAt: formData.senderPaymentCollected ? new Date().toISOString() : null,
+      paymentCollectedBy: formData.senderPaymentCollected ? currentUser.id : null,
+    };
+    delete shipmentData.poblacion; // Clean up temp field
+    delete shipmentData.senderPaymentCollected; // Clean up temp field
+    onSave(shipmentData);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // If user checked "Cobrado al remitente", show confirmation alert
+    if (formData.senderPaymentCollected && !isEditing) {
+      setShowSenderPaymentAlert(true);
+    }
+    // NEW check: If it's a daily client, sender pays, and they DIDN'T check the box
+    else if (showSenderPayment && !formData.senderPaymentCollected && !isEditing) {
+      setShowSenderForgotAlert(true); // This is the new "Are you sure?" modal
+    }
+    else {
+      runSave(); // Otherwise, save directly
+    }
+  };
+
+  const handleConfirmSenderPayment = () => {
+    setShowSenderPaymentAlert(false);
+    runSave();
+  };
+
+  // New handler for the "forgot" modal's "Confirm" button
+  const handleConfirmForgotSenderPayment = () => {
+    setShowSenderForgotAlert(false);
+    runSave(); // Just save it, it will be marked as pending on delivery
+  };
+
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <Card className="w-full max-w-lg relative h-[90vh] overflow-y-auto">
+          <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
+          <h3 className="text-2xl font-bold mb-4 text-white">{isEditing ? 'Editar' : 'Crear'} Albarán</h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <select
+              name="driverId"
+              value={formData.driverId || ''}
+              onChange={(e) => setFormData(prev => ({...prev, driverId: e.target.value ? parseInt(e.target.value, 10) : null}))}
+              className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600"
+            >
+              <option value="">-- Sin Asignar --</option>
+              {drivers.map(d => (<option key={d.id} value={d.id}>{d.name}</option>))}
+            </select>
+
+            <div className="grid grid-cols-2 gap-4">
+              <SearchableDropdown options={contactOptions} value={formData.clientName} onChange={(e) => setFormData(prev => ({...prev, clientName: e.target.value, clientId: null}))} onSelect={handleClientSelect} placeholder="Buscar cliente..." />
+              <SearchableDropdown options={contactOptions} value={formData.recipient} onChange={(e) => setFormData(prev => ({...prev, recipient: e.target.value}))} onSelect={handleRecipientSelect} placeholder="Buscar destinatario..." />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-2">Paga portes</label>
+              <div className="flex space-x-2">
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, shippingPayer: 'remitente' }))} className={`flex-1 py-2 px-4 rounded-lg font-semibold ${formData.shippingPayer === 'remitente' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>Remitente</button>
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, shippingPayer: 'destinatario' }))} className={`flex-1 py-2 px-4 rounded-lg font-semibold ${formData.shippingPayer === 'destinatario' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>Destinatario</button>
+              </div>
+            </div>
+
+            {showSenderPayment && (
+               <div className="bg-gray-700/50 p-3 rounded-lg">
+                 <label className="flex items-center space-x-2 text-white">
+                   <input
+                     type="checkbox"
+                     checked={formData.senderPaymentCollected}
+                     onChange={(e) => setFormData(prev => ({...prev, senderPaymentCollected: e.target.checked}))}
+                     className="h-4 w-4 rounded bg-gray-600"
+                   />
+                   <span>¿Cobrado al remitente?</span>
+                 </label>
+              </div>
+            )}
+
+            {isNewRecipient && (
+              <div className="bg-gray-700/50 p-3 rounded-lg"><label className="flex items-center space-x-2 text-white"><input type="checkbox" checked={saveNewRecipient} onChange={(e) => setSaveNewRecipient(e.target.checked)} className="h-4 w-4 rounded bg-gray-600" /><span>Guardar "{formData.recipient}"</span></label></div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input type="text" name="poblacion" value={formData.poblacion} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Población" />
+              <div className="relative">
+                <input type="text" name="destination" value={formData.destination} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg pr-20" placeholder="Dirección de Entrega" />
+                <div className="absolute inset-y-0 right-0 flex items-center">
+                  <button type="button" onClick={handleGetCurrentLocation} className="px-3 text-gray-400 hover:text-blue-400"><LocateFixed size={18} /></button>
+                  <button type="button" onClick={handleViewOnMap} className="px-3 text-gray-400 hover:text-blue-400" disabled={!formData.destination || !formData.poblacion}><MapPin size={18} /></button>
+                </div>
+              </div>
+            </div>
+            <div className="flex space-x-4">
+              <input type="number" name="items" value={formData.items} onChange={handleChange} min="1" required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Nº Bultos" />
+              <input type="number" name="shippingCost" value={formData.shippingCost} onChange={handleChange} min="0" step="0.01" className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Precio del Porte (€)" />
+              <input type="number" name="collectedAmount" value={formData.collectedAmount} onChange={handleChange} min="0" step="0.01" required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Reembolso (€)" />
+            </div>
+            <div>
+              <textarea name="observations" value={formData.observations} onChange={handleChange} placeholder="Observaciones..." className="w-full bg-gray-700 text-white p-2 rounded-lg border-gray-600 h-24"></textarea>
+            </div>
+             <div>
+              <button type="button" onClick={() => merchandisePhotoInputRef.current.click()} className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg">
+                <Camera size={18} />{formData.merchandisePhoto ? 'Cambiar Foto' : 'Foto Mercancía'}
+              </button>
+              <input type="file" accept="image/*" ref={merchandisePhotoInputRef} onChange={handlePhotoUpload} className="hidden" />
+              {formData.merchandisePhoto && <img src={formData.merchandisePhoto} alt="Vista previa" className="mt-4 rounded-lg max-h-40 mx-auto" />}
+            </div>
+            <div className="pt-4">
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg" disabled={!formData.clientId || !formData.recipient || !formData.destination || !formData.poblacion}>
+                {isEditing ? 'Guardar Cambios' : 'Generar Albarán'}
+              </button>
+            </div>
+          </form>
+        </Card>
+      </div>
+      {showSenderPaymentAlert && (
+        <SenderPaymentConfirmModal
+          clientName={formData.clientName}
+          shippingCost={parseFloat(formData.shippingCost) || 0}
+          onConfirm={handleConfirmSenderPayment}
+          onCancel={() => setShowSenderPaymentAlert(false)}
+        />
+      )}
+      {showSenderForgotAlert && (
+        <SenderForgotAlertModal
+          onConfirm={handleConfirmForgotSenderPayment}
+          onCancel={() => setShowSenderForgotAlert(false)}
+        />
+      )}
+    </>
+  );
+};
+
+// --- NUEVO MODAL DE RECOGIDA ---
+const PickupModal = ({ isOpen, onCancel, onSave, clients, currentUser }) => {
+  const initialFormState = {
+    clientId: null,
+    clientName: '',
+    address: '',
+    items: 1,
+    observations: '',
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
+
+  const clientOptions = clients.map(c => ({
+    value: `client-${c.id}`,
+    label: c.name,
+    address: c.address,
+    clientId: c.id
+  }));
+
+  const handleClientSelect = (option) => {
+    setFormData(prev => ({
+      ...prev,
+      clientId: option.clientId,
+      clientName: option.label,
+      address: option.address, // Auto-rellenar dirección
+    }));
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!formData.clientId) {
+      // Use custom alert later
+      console.error("Por favor, selecciona un cliente.");
+      return;
+    }
+
+    const pickupData = {
+      ...formData,
+      id: undefined, // Es una nueva recogida
+      items: parseInt(formData.items, 10) || 1,
+      driverId: currentUser.id, // Asignar al transportista actual
+      createdAt: new Date().toISOString(),
+    };
+    onSave(pickupData);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-lg relative h-[90vh] overflow-y-auto">
+        <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
+        <h3 className="text-2xl font-bold mb-4 text-white">Registrar Recogida</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+
+          <SearchableDropdown
+            options={clientOptions}
+            value={formData.clientName}
+            onChange={(e) => setFormData(prev => ({...prev, clientName: e.target.value, clientId: null}))}
+            onSelect={handleClientSelect}
+            placeholder="Buscar cliente..."/>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Dirección de Recogida</label>
+            <input
+              type="text"
+              name="address"
+              value={formData.address}
+              onChange={handleChange}
+              required
+              className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600"
+              placeholder="Dirección de Recogida"/>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Nº Bultos</label>
+            <input
+              type="number"
+              name="items"
+              value={formData.items}
+              onChange={handleChange}
+              min="1"
+              required
+              className="w-full bg-gray-700 text-white p-2 rounded-lg"
+              placeholder="Nº Bultos" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Observaciones</label>
+            <textarea
+              name="observations"
+              value={formData.observations}
+              onChange={handleChange}
+              placeholder="Observaciones de la recogida..."
+              className="w-full bg-gray-700 text-white p-2 rounded-lg border-gray-600 h-24"></textarea>
+          </div>
+
+          <div className="pt-4">
+            <button
+              type="submit"
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg"
+              disabled={!formData.clientId}>
+              Confirmar Recogida
+            </button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+};
+
+
+const DeleteConfirmationModal = ({ shipment, onConfirm, onCancel }) => {
+  if (!shipment) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md relative">
+        <h3 className="text-2xl font-bold mb-4 text-white text-center">Confirmar Eliminación</h3>
+        <p className="text-gray-300 text-center mb-6">¿Estás seguro de que quieres eliminar el albarán #{shipment.id}?</p>
+        <div className="flex justify-center space-x-4"><button onClick={onCancel} className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg">Cancelar</button><button onClick={onConfirm} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg">Sí, Eliminar</button></div>
+      </Card>
+    </div>
+  );
+};
+
+// --- MODAL ALERTA PAGO ---
+const PaymentAlertModal = ({ shipment, onConfirm, onCancel }) => {
+  if (!shipment) return null;
+
+  const needsReimbursement = shipment.collectedAmount > 0;
+  const needsShippingCost = shipment.shippingCost > 0 && shipment.shippingPayer === 'destinatario';
+  const totalToCollect = (needsReimbursement ? shipment.collectedAmount : 0) + (needsShippingCost ? shipment.shippingCost : 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md relative text-center">
+         <AlertTriangle size={48} className="mx-auto text-yellow-400 mb-4" />
+        <h3 className="text-2xl font-bold mb-4 text-yellow-400">¡ATENCIÓN! COBRO PENDIENTE</h3>
+        <p className="text-gray-300 mb-6">Este envío requiere cobrar al destinatario:</p>
+        <div className="space-y-2 mb-6 text-left bg-gray-900 p-4 rounded-lg">
+          {needsReimbursement && (
+            <p className="text-lg"><span className="font-bold text-gray-400">Reembolso:</span> <span className="font-bold text-yellow-400">{shipment.collectedAmount.toFixed(2)} €</span></p>
+          )}
+          {needsShippingCost && (
+             <p className="text-lg"><span className="font-bold text-gray-400">Portes:</span> <span className="font-bold text-blue-400">{shipment.shippingCost.toFixed(2)} €</span></p>
+          )}
+           <p className="text-xl border-t border-gray-700 pt-2 mt-2"><span className="font-bold text-gray-400">TOTAL A COBRAR:</span> <span className="font-bold text-yellow-300">{totalToCollect.toFixed(2)} €</span></p>
+        </div>
+        <div className="flex justify-center space-x-4">
+          <button onClick={onCancel} className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg">Cancelar</button>
+          <button onClick={onConfirm} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg">Confirmar Entrega y Cobro</button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// --- MODAL CONFIRMAR PAGO REMITENTE ---
+const SenderPaymentConfirmModal = ({ clientName, shippingCost, onConfirm, onCancel }) => {
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md relative text-center">
+         <DollarSign size={48} className="mx-auto text-blue-400 mb-4" />
+        <h3 className="text-2xl font-bold mb-4 text-white">Confirmar Cobro en Origen</h3>
+        <p className="text-gray-300 mb-6">Vas a registrar un cobro de portes del remitente:</p>
+        <div className="space-y-2 mb-6 text-left bg-gray-900 p-4 rounded-lg">
+           <p className="text-lg"><span className="font-bold text-gray-400">Cliente:</span> <span className="font-bold text-white">{clientName}</span></p>
+           <p className="text-lg"><span className="font-bold text-gray-400">Portes:</span> <span className="font-bold text-blue-400">{shippingCost.toFixed(2)} €</span></p>
+        </div>
+        <div className="flex justify-center space-x-4">
+          <button onClick={onCancel} className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg">Cancelar</button>
+          <button onClick={onConfirm} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Confirmar Cobro</button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// --- MODAL ALERTA OLVIDO PAGO REMITENTE ---
+const SenderForgotAlertModal = ({ onConfirm, onCancel }) => {
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md relative text-center">
+         <AlertTriangle size={48} className="mx-auto text-yellow-400 mb-4" />
+        <h3 className="text-2xl font-bold mb-4 text-white">¿Olvidaste el Cobro?</h3>
+        <p className="text-gray-300 mb-6">Este es un cliente de pago diario y el porte es a cargo del remitente, pero no has marcado "Cobrado al remitente".</p>
+        <p className="text-gray-300 mb-6">El envío se marcará como <strong>pendiente de cobro en origen</strong>.</p>
+        <div className="flex justify-center space-x-4">
+          <button onClick={onCancel} className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg">Cancelar</button>
+          <button onClick={onConfirm} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg">Continuar así</button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+
+// --- MODAL VISTA PREVIA IMPRESIÓN ---
+const PrintPreviewModal = ({ shipment, client, onConfirm, onCancel }) => {
+  if (!shipment || !client) return null;
+
+  const printDate = shipment.deliveredAt ? new Date(shipment.deliveredAt).toLocaleString('es-ES') : new Date().toLocaleString('es-ES');
+  const shippingCostPaid = shipment.shippingCost > 0 && shipment.shippingPayer === 'destinatario';
+  const totalCollected = (shipment.collectedAmount || 0) + (shippingCostPaid ? shipment.shippingCost : 0);
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-sm relative">
+         <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
+        <h3 className="text-xl font-bold mb-4 text-white text-center">Vista Previa del Ticket</h3>
+
+        {/* Ticket Content Duplicated for Preview */}
+        <div className="bg-white text-black p-4 rounded-lg" style={{ fontFamily: 'sans-serif', fontSize: '12px' }}>
+          <p className="text-center text-sm mb-4 font-bold">RECIBO DE ENTREGA</p>
+
+          <p><strong>Albarán:</strong> #{shipment.id}</p>
+          <p><strong>Fecha:</strong> {printDate}</p>
+
+          <hr className="my-2 border-black" />
+
+          <p><strong>Remitente:</strong></p>
+          <p className="ml-2">{client.name}</p>
+
+          <p className="mt-2"><strong>Destinatario:</strong></p>
+          <p className="ml-2">{shipment.recipient}</p>
+          <p className="ml-2">{shipment.destination}</p>
+
+          <hr className="my-2 border-black" />
+
+          {shipment.collectedAmount > 0 && (
+            <p><strong>Reembolso:</strong> {shipment.collectedAmount.toFixed(2)} €</p>
+          )}
+          {shippingCostPaid && (
+            <p><strong>Portes:</strong> {shipment.shippingCost.toFixed(2)} €</p>
+          )}
+
+          {(shipment.collectedAmount > 0 || shippingCostPaid) && (
+             <p className="font-bold text-lg mt-2">
+               <strong>TOTAL:</strong> {totalCollected.toFixed(2)} €
+             </p>
+          )}
+
+          {shipment.status === 'Entregado' ? (
+             <p className="font-bold text-center text-lg mt-4" style={{color: 'green'}}>PAGADO</p>
+          ) : (
+             <p className="font-bold text-center text-lg mt-4" style={{color: 'red'}}>COBRO PENDIENTE</p>
+          )}
+
+          {shipment.paymentNotes && (
+             <p className="text-center text-xs mt-1">Nota: {shipment.paymentNotes}</p>
+          )}
+        </div>
+
+        {/* Modal Buttons */}
+        <div className="flex justify-center space-x-4 mt-6">
+          <button onClick={onCancel} className="flex-1 bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg">Cerrar</button>
+          <button onClick={onConfirm} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2">
+            <Printer size={18} /> Confirmar Impresión
+          </button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+
+// --- COMPONENTE AJUSTES ---
+const AdminSettings = ({ appSettings, onUpdateSettings }) => {
+
+  const handleToggle = (settingKey) => {
+    onUpdateSettings(prev => ({
+      ...prev,
+      [settingKey]: !prev[settingKey]
+    }));
+  };
+
+  return (
+     <div className="space-y-8">
+       <h2 className="text-3xl font-bold text-white">Ajustes Generales</h2>
+
+       <Card>
+         <h3 className="text-xl font-bold mb-4 text-white">Configuración de Transportistas</h3>
+         <div className="space-y-4">
+           <div className="flex justify-between items-center bg-gray-900 p-4 rounded-lg">
+             <label htmlFor="allowManualSort" className="text-gray-300">Permitir reordenar ruta manually</label>
+             <button onClick={() => handleToggle('allowManualSort')} className={appSettings.allowManualSort ? 'text-green-400' : 'text-gray-500'}>
+              {appSettings.allowManualSort ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+             </button>
+           </div>
+            <div className="flex justify-between items-center bg-gray-900 p-4 rounded-lg">
+             <label htmlFor="showPendingAssignTab" className="text-gray-300">Ver pestaña 'Pendiente de Asignar'</label>
+             <button onClick={() => handleToggle('showPendingAssignTab')} className={appSettings.showPendingAssignTab ? 'text-green-400' : 'text-gray-500'}>
+              {appSettings.showPendingAssignTab ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+             </button>
+           </div>
+            <div className="flex justify-between items-center bg-gray-900 p-4 rounded-lg">
+             <label htmlFor="showPaymentAlertOnDelivery" className="text-gray-300">Mostrar alerta de cobro al entregar</label>
+             <button onClick={() => handleToggle('showPaymentAlertOnDelivery')} className={appSettings.showPaymentAlertOnDelivery ? 'text-green-400' : 'text-gray-500'}>
+              {appSettings.showPaymentAlertOnDelivery ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
+             </button>
+           </div>
+           {/* Add more driver settings here */}
+         </div>
+       </Card>
+
+        <Card>
+         <h3 className="text-xl font-bold mb-4 text-white">Configuración de Clientes</h3>
+         <p className="text-gray-500">Actualmente no hay configuraciones específicas para clientes.</p>
+         {/* Add client settings here when available */}
+       </Card>
+     </div>
+  );
+};
+
+// --- PANTALLAS PRINCIPALES ---
+
+const AdminDashboard = ({
+  shipments, pickups, clients, drivers,
+  onAddDriver, onUpdateDriver, onEditShipment, onDeleteShipment, onImpersonateDriver,
+  appSettings, onUpdateSettings
+}) => {
+  const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
+  const [driverToEdit, setDriverToEdit] = useState(null);
+  const [shipmentToDelete, setShipmentToDelete] = useState(null);
+  const [expandedSummaryDriverId, setExpandedSummaryDriverId] = useState(null);
+  const [sortOrder, setSortOrder] = useState('default');
+  const [statusFilter, setStatusFilter] = useState('activos');
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'activity', 'settings'
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+
+  const stats = {
+    total: shipments.length,
+    inRoute: shipments.filter(s => s.status === 'En ruta').length,
+    delivered: shipments.filter(s => s.status === 'Entregado').length,
+    pending: shipments.filter(s => s.status === 'Pendiente').length,
+  };
+
+  const sortedShipments = React.useMemo(() => {
+    let filteredShipments;
+
+    switch (statusFilter) {
+      case 'pendientes': filteredShipments = shipments.filter(s => s.status === 'Pendiente'); break;
+      case 'en_reparto': filteredShipments = shipments.filter(s => s.status === 'En ruta'); break;
+      case 'entregados': filteredShipments = shipments.filter(s => s.status === 'Entregado'); break;
+      case 'incidencia': filteredShipments = shipments.filter(s => s.status === 'Incidencia'); break;
+      case 'activos': filteredShipments = shipments.filter(s => s.status === 'Pendiente' || s.status === 'En ruta'); break;
+      case 'todos': default: filteredShipments = [...shipments]; break;
+    }
+
+    const getCity = (address) => {
+      const parts = address.split(',');
+      return parts.length > 1 ? parts.slice(1).join(',').trim() : address;
+    };
+
+    switch (sortOrder) {
+      case 'poblacion': return filteredShipments.sort((a, b) => getCity(a.destination).localeCompare(getCity(b.destination)));
+      case 'transportista': return filteredShipments.sort((a, b) => (drivers.find(d => d.id === a.driverId)?.name || '').localeCompare(drivers.find(d => d.id === b.driverId)?.name || ''));
+      case 'default': default: return filteredShipments.sort((a, b) => a.id - b.id);
+    }
+  }, [shipments, statusFilter, sortOrder, drivers]);
+
+  const activityData = React.useMemo(() => {
+    const activeShipments = shipments.filter(s => s.status === 'Pendiente' || s.status === 'En ruta');
+    return activeShipments.reduce((acc, shipment) => {
+      (acc[shipment.driverId] = acc[shipment.driverId] || []).push(shipment);
+      return acc;
+    }, {});
+  }, [shipments]);
+
+  // Resumen de Entregas
+  const dailySummaryData = React.useMemo(() => {
+    const deliveredShipments = shipments.filter(s =>
+      s.status === 'Entregado' &&
+      s.deliveredAt &&
+      s.deliveredAt.startsWith(selectedDate)
+    );
+
+    const summaryByDriver = deliveredShipments.reduce((acc, shipment) => {
+      const driverId = shipment.driverId;
+      if (!acc[driverId]) {
+        acc[driverId] = {
+          driverName: drivers.find(d => d.id === driverId)?.name || 'Desconocido',
+          totalShippingCost: 0,
+          totalCollectedAmount: 0,
+          shipments: []
+        };
+      }
+      acc[driverId].totalShippingCost += shipment.shippingCost;
+      acc[driverId].totalCollectedAmount += shipment.collectedAmount;
+      acc[driverId].shipments.push(shipment);
+      return acc;
+    }, {});
+
+    return Object.entries(summaryByDriver).map(([driverId, data]) => ({
+      driverId: parseInt(driverId),
+      ...data
+    }));
+  }, [shipments, drivers, selectedDate]);
+
+  // NUEVO: Resumen de Recogidas
+  const dailyPickupSummary = useMemo(() => {
+    const dayPickups = pickups.filter(p => p.createdAt && p.createdAt.startsWith(selectedDate));
+
+    const summaryByClient = dayPickups.reduce((acc, pickup) => {
+      const clientId = pickup.clientId;
+      if (!acc[clientId]) {
+        const client = clients.find(c => c.id === clientId);
+        acc[clientId] = {
+          clientName: client?.name || 'Cliente Desconocido',
+          client: client,
+          totalItems: 0,
+          pickups: []
+        };
+      }
+      acc[clientId].totalItems += pickup.items;
+      acc[clientId].pickups.push(pickup);
+      return acc;
+    }, {});
+
+    return Object.values(summaryByClient);
+  }, [pickups, clients, selectedDate]);
+
+
+  const hasActiveShipments = Object.keys(activityData).length > 0;
+
+  const toggleSummaryDetails = (driverId) => setExpandedSummaryDriverId(prevId => (prevId === driverId ? null : driverId));
+
+  const handleSaveDriver = (driverData) => {
+    if (driverData.id) onUpdateDriver(driverData.id, driverData); else onAddDriver(driverData);
+    setIsDriverModalOpen(false); setDriverToEdit(null);
+  };
+
+  const handleOpenCreateModal = () => { setDriverToEdit(null); setIsDriverModalOpen(true); };
+  const handleOpenEditModal = (driver) => { setDriverToEdit(driver); setIsDriverModalOpen(true); };
+  const confirmDelete = () => { if(shipmentToDelete) { onDeleteShipment(shipmentToDelete.id); setShipmentToDelete(null); } };
+
+  // --- NUEVO: Funciones de compartir resumen de recogidas ---
+  const formatBatchPickupMessage = (client, pickups) => {
+    const date = new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES');
+    let message = `Hola ${client.name},\n\nEste es tu resumen de recogidas de hoy (${date}):\n\n`;
+    let totalItems = 0;
+
+    pickups.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt)).forEach(p => { // Sort chronologically
+      const time = new Date(p.createdAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      message += `- ${time}: ${p.items} bulto(s)`;
+      if (p.observations) {
+        message += ` (Obs: ${p.observations})\n`;
+      } else {
+        message += `\n`;
+      }
+      totalItems += p.items;
+    });
+
+    message += `\nTotal: ${totalItems} bultos recogidos.\n\nGracias,\nSUM Logística`;
+    return message;
+  };
+
+  const handleShareBatchEmail = (client, pickups) => {
+    if (!client.email) {
+      // Use custom alert later
+      console.error("Este cliente no tiene un email registrado.");
+      return;
+    }
+    const subject = `Resumen de Recogidas - ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES')}`;
+    const body = formatBatchPickupMessage(client, pickups);
+    const mailtoLink = `mailto:${client.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoLink, '_blank');
+  };
+
+  const handleShareBatchWhatsApp = (client, pickups) => {
+    if (!client.phone) {
+      // Use custom alert later
+      console.error("Este cliente no tiene un teléfono registrado.");
+      return;
+    }
+    const body = formatBatchPickupMessage(client, pickups);
+    const whatsappLink = `https://wa.me/${client.phone}?text=${encodeURIComponent(body)}`;
+    window.open(whatsappLink, '_blank');
+  };
+  // --- Fin funciones de compartir ---
+
+
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <h2 className="text-3xl font-bold text-white">Panel de Administración</h2>
+        <div className="flex items-center space-x-2 bg-gray-700 p-1 rounded-lg">
+          <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-md font-semibold ${view === 'dashboard' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>General</button>
+          <button onClick={() => setView('activity')} className={`px-4 py-2 rounded-md font-semibold ${view === 'activity' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Actividad y Resúmenes</button>
+          <button onClick={() => setView('settings')} className={`px-4 py-2 rounded-md font-semibold ${view === 'settings' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Ajustes</button>
+        </div>
+      </div>
+
+      {view === 'dashboard' && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card><div className="flex items-center space-x-4"><Package size={28} className="text-blue-400" /><div><p>Envíos Totales</p><p className="text-2xl font-bold">{stats.total}</p></div></div></Card>
+            <Card><div className="flex items-center space-x-4"><Truck size={28} className="text-yellow-400" /><div><p>En Ruta</p><p className="text-2xl font-bold">{stats.inRoute}</p></div></div></Card>
+            <Card><div className="flex items-center space-x-4"><CheckCircle size={28} className="text-green-400" /><div><p>Entregados</p><p className="text-2xl font-bold">{stats.delivered}</p></div></div></Card>
+            <Card><div className="flex items-center space-x-4"><Clock size={28} className="text-red-400" /><div><p>Pendientes</p><p className="text-2xl font-bold">{stats.pending}</p></div></div></Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Card>
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
+                  <h3 className="text-xl font-bold">Gestión de Envíos</h3>
+                  <div className="flex items-center gap-2">
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="activos">Activos</option><option value="todos">Todos</option><option value="pendientes">Pendientes</option><option value="en_reparto">En Reparto</option><option value="entregados">Entregados</option><option value="incidencia">Incidencias</option></select>
+                    <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="default">Ruta</option><option value="poblacion">Población</option><option value="transportista">Transportista</option></select>
+                  </div>
+                </div>
+                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                  {sortedShipments.map(shipment => (
+                    <div key={shipment.id} className="bg-gray-900 p-4 rounded-lg flex justify-between items-center">
+                      <div className="flex-1 min-w-0"><p className="font-bold truncate">{shipment.recipient}</p><p className="text-sm text-gray-400 truncate">{shipment.destination.split(',')[0]}</p><p className="text-sm font-semibold">{shipment.destination.split(',').slice(1).join(',')}</p></div>
+                      <div className="flex items-center flex-shrink-0 gap-3 ml-4"><StatusBadge status={shipment.status} /><button onClick={() => onEditShipment(shipment)} className="text-gray-400 hover:text-white"><Pencil size={18} /></button><button onClick={() => setShipmentToDelete(shipment)} className="text-red-500 hover:text-red-400"><Trash2 size={18} /></button></div>
+                    </div>
+                  ))}
+                   {sortedShipments.length === 0 && <p className="text-center text-gray-500 py-8">No hay envíos que coincidan con los filtros.</p>}
+                </div>
+              </Card>
+            </div>
+            <div>
+               <Card>
+                <h3 className="text-xl font-bold mb-4">Gestión de Transportistas</h3>
+                 <div className="space-y-4 max-h-[250px] overflow-y-auto pr-2">
+                  {drivers.map(driver => (
+                    <div key={driver.id} className="bg-gray-900 p-4 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-bold">{driver.name}</p>
+                          <p className="text-sm text-gray-400 mt-1">{driver.vehicle}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => onImpersonateDriver(driver.id)} className="text-blue-400 hover:text-blue-300" title="Acceder como transportista">
+                            <LogIn size={18} />
+                          </button>
+                          <button onClick={() => handleOpenEditModal(driver)} className="text-gray-400 hover:text-white" title="Editar transportista">
+                            <Pencil size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                 <div className="mt-4"><button onClick={handleOpenCreateModal} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 font-semibold py-2 px-4 rounded-lg"><UserPlus size={18} /> Nuevo Transportista</button></div>
+              </Card>
+            </div>
+          </div>
+        </>
+      )}
+
+      {view === 'activity' && (
+         <div>
+           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6">
+             <h3 className="text-2xl font-bold text-white">Actividad y Resúmenes Diarios</h3>
+             <div>
+               <label htmlFor="summary-date" className="text-sm text-gray-400 mr-2">Fecha del Resumen:</label>
+               <input
+                 type="date"
+                 id="summary-date"
+                 value={selectedDate}
+                 onChange={(e) => setSelectedDate(e.target.value)}
+                 className="bg-gray-900 text-white p-2 rounded-lg border border-gray-600"
+               />
+             </div>
+           </div>
+
+           {/* Resumen de Entregas */}
+           <div className="mb-10">
+             <h4 className="text-xl font-bold mb-4 text-white">Resumen de Entregas ({new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })})</h4>
+              <div className="space-y-4">
+               {dailySummaryData.length === 0 ? (
+                 <Card><p className="text-center text-gray-500 py-8">No hay entregas completadas para mostrar.</p></Card>
+               ) : (
+                 dailySummaryData.map(summary => (
+                   <div key={summary.driverId} className="bg-gray-900 rounded-lg overflow-hidden">
+                     <button onClick={() => toggleSummaryDetails(summary.driverId)} className="w-full p-4 flex flex-col sm:flex-row justify-between sm:items-center text-left hover:bg-gray-700/50">
+                       <p className="font-bold text-lg mb-2 sm:mb-0">{summary.driverName}</p>
+                       <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto">
+                         <div className="flex-1">
+                           <p className="text-xs text-gray-400">Portes</p>
+                           <p className="font-semibold text-blue-400">{summary.totalShippingCost.toFixed(2)} €</p>
+                         </div>
+                         <div className="flex-1">
+                           <p className="text-xs text-gray-400">Reembolsos</p>
+                           <p className="font-bold text-yellow-400">{summary.totalCollectedAmount.toFixed(2)} €</p>
+                         </div>
+                         <div className="ml-auto">
+                          {expandedSummaryDriverId === summary.driverId ? <ChevronUp /> : <ChevronDown />}
+                         </div>
+                       </div>
+                     </button>
+                     {expandedSummaryDriverId === summary.driverId && (
+                       <div className="bg-gray-800/50 p-4 border-t border-gray-700">
+                         <h5 className="text-sm font-semibold text-gray-400 mb-2">Detalle de Entregas:</h5>
+                         <div className="space-y-2">
+                           {summary.shipments.map(s => (
+                             <div key={s.id} className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 items-center text-sm">
+                               <p className="text-gray-300 col-span-1 truncate" title={s.recipient}>#{s.id} - {s.recipient}</p>
+                               <p className="text-blue-300 sm:text-right">Porte: {s.shippingCost.toFixed(2)} €</p>
+                               <p className="text-yellow-300 sm:text-right">Reembolso: {s.collectedAmount.toFixed(2)} €</p>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
+                   </div>
+                 ))
+               )}
+             </div>
+           </div>
+
+           {/* NUEVO: Resumen de Recogidas */}
+           <div className="mb-10">
+             <h4 className="text-xl font-bold mb-4 text-white">Resumen de Recogidas ({new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })})</h4>
+             <div className="space-y-4">
+              {dailyPickupSummary.length === 0 ? (
+                <Card><p className="text-center text-gray-500 py-8">No hay recogidas para mostrar.</p></Card>
+              ) : (
+                dailyPickupSummary.map(summary => (
+                  <Card key={summary.client.id}>
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4">
+                      <div>
+                        <p className="font-bold text-lg">{summary.clientName}</p>
+                        <p className="text-sm text-gray-400">{summary.client.address}</p>
+                      </div>
+                      <div className="flex items-center gap-3 mt-3 sm:mt-0">
+                        <button onClick={() => handleShareBatchWhatsApp(summary.client, summary.pickups)} className="bg-green-600 hover:bg-green-700 text-white font-semibold px-3 py-2 rounded-lg text-sm flex items-center gap-2" title="Enviar Resumen por WhatsApp">
+                          <MessageSquare size={16} /> WhatsApp
+                        </button>
+                        <button onClick={() => handleShareBatchEmail(summary.client, summary.pickups)} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-lg text-sm flex items-center gap-2" title="Enviar Resumen por Email">
+                          <Mail size={16} /> Email
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2 bg-gray-900 p-3 rounded-lg max-h-60 overflow-y-auto">
+                      <h5 className="text-sm font-semibold text-gray-400 mb-2">Detalle de Recogidas ({summary.totalItems} bultos totales):</h5>
+                      {summary.pickups.sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt)).map(p => ( // Sort chronologically
+                        <div key={p.id} className="flex justify-between items-center text-sm">
+                          <p className="text-gray-300">
+                            <span className="font-semibold">{new Date(p.createdAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}:</span> {p.items} bulto(s)
+                          </p>
+                          <p className="text-gray-500 truncate ml-4" title={p.observations}>{p.observations}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                ))
+              )}
+             </div>
+           </div>
+
+           {/* Envíos Activos (sin cambios) */}
+           <div>
+             <h4 className="text-xl font-bold mb-4 text-white">Envíos Activos Ahora</h4>
+             <div className="space-y-6">
+               {!hasActiveShipments && (
+                 <Card><p className="text-center text-gray-500 py-8">No hay envíos activos en este momento.</p></Card>
+               )}
+               {hasActiveShipments && drivers.map(driver => {
+                 const driverShipments = activityData[driver.id];
+                 if (!driverShipments || driverShipments.length === 0) return null;
+                 return (
+                   <Card key={driver.id}>
+                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                       <div>
+                         <h4 className="text-lg font-bold text-white">{driver.name}</h4>
+                         <p className="text-sm text-gray-400">{driver.vehicle}</p>
+                       </div>
+                       <span className="text-blue-400 font-bold bg-blue-500/10 px-3 py-1 rounded-full mt-2 sm:mt-0">{driverShipments.length} Activos</span>
+                     </div>
+                     <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                       {driverShipments.map(shipment => (
+                         <div key={shipment.id} className="bg-gray-900 p-3 rounded-lg flex justify-between items-center">
+                           <div className="flex-1 min-w-0">
+                             <p className="font-semibold truncate">{shipment.recipient}</p>
+                             <p className="text-sm text-gray-400 truncate">{shipment.destination}</p>
+                           </div>
+                           <div className="flex items-center flex-shrink-0 gap-3 ml-4">
+                             <StatusBadge status={shipment.status} />
+                             <button onClick={() => onEditShipment(shipment)} className="text-gray-400 hover:text-white" title="Editar Envío"><Pencil size={18} /></button>
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   </Card>
+                 );
+               })}
+             </div>
+           </div>
+         </div>
+      )}
+
+       {view === 'settings' && (
+         <AdminSettings appSettings={appSettings} onUpdateSettings={setAppSettings} />
+       )}
+
+
+      {isDriverModalOpen && <DriverModal driverToEdit={driverToEdit} onSave={handleSaveDriver} onCancel={() => { setIsDriverModalOpen(false); setDriverToEdit(null); }} />}
+      <DeleteConfirmationModal shipment={shipmentToDelete} onConfirm={confirmDelete} onCancel={() => setShipmentToDelete(null)} />
+    </div>
+  );
+};
+
+const DriverView = ({
+  driver, shipments, pickups, clients, drivers,
+  onUpdateShipment, onCreateShipment, onEditShipment, onCreatePickup,
+  appSettings
+}) => {
+  const [activeTab, setActiveTab] = useState('reparto');
+  const [list, setList] = useState([]);
+  const [pickupList, setPickupList] = useState([]); // Nueva lista para recogidas
+  const [selectedShipment, setSelectedShipment] = useState(null);
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
+  const fileInputRef = useRef(null);
+  const [assigningShipmentId, setAssigningShipmentId] = useState(null);
+  const [sortOrder, setSortOrder] = useState('default');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isPendingPayment, setIsPendingPayment] = useState(false);
+  const [paymentNote, setPaymentNote] = useState('');
+  const [showPaymentAlert, setShowPaymentAlert] = useState(false); // New state for payment alert
+  const [showPrintPreview, setShowPrintPreview] = useState(false); // New state for print preview
+  const ticketRef = useRef(null); // Ref for printable ticket
+  // const [fabOpen, setFabOpen] = useState(false); // Estado para el botón FAB - Eliminado
+
+  const dragItem = useRef(null);
+  const dragOverItem = useRef(null);
+
+  useEffect(() => {
+    if (activeTab === 'recogidas_driver') {
+      let filteredPickups = pickups.filter(p =>
+        p.driverId === driver.id &&
+        p.createdAt &&
+        p.createdAt.startsWith(selectedDate)
+      ).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)); // Ordenar por más reciente
+      setPickupList(filteredPickups);
+      setList([]); // Limpiar lista de envíos
+    } else {
+      let filteredShipments = shipments.filter(shipment => {
+        if (activeTab === 'reparto') return shipment.driverId === driver.id && shipment.status === 'En ruta';
+        if (activeTab === 'pendiente') return shipment.status === 'Pendiente';
+        if (activeTab === 'completados') return shipment.driverId === driver.id && (shipment.status === 'Entregado');
+        if (activeTab === 'cobroPendiente') return shipment.driverId === driver.id && shipment.status === 'Cobro Pendiente';
+        return false;
+      });
+      setList(filteredShipments);
+      setPickupList([]); // Limpiar lista de recogidas
+    }
+  }, [activeTab, shipments, pickups, driver.id, selectedDate]);
+
+  const dailySummary = useMemo(() => {
+    // 1. Get payments from DELIVERED shipments (reimbursements + ports)
+    const deliveredShipments = shipments.filter(s =>
+      s.driverId === driver.id &&
+      s.status === 'Entregado' &&
+      s.deliveredAt &&
+      s.deliveredAt.startsWith(selectedDate)
+    );
+    const totalShippingCostDelivered = deliveredShipments.filter(s => s.shippingPayer === 'destinatario').reduce((sum, s) => sum + s.shippingCost, 0); // Corrected sum
+    const totalCollectedAmountDelivered = deliveredShipments.reduce((sum, s) => sum + s.collectedAmount, 0); // Corrected sum
+
+    const shipmentsWithCollections = deliveredShipments.filter(s => s.collectedAmount > 0 || (s.shippingCost > 0 && s.shippingPayer === 'destinatario'));
+
+    // 2. Get payments from SENDER PRE-PAYMENTS (ports only)
+    const prePaidShipments = shipments.filter(s =>
+      s.paymentCollectedBy === driver.id &&
+      s.senderPaymentCollectedAt &&
+      s.senderPaymentCollectedAt.startsWith(selectedDate)
+    );
+    const totalShippingCostPrePaid = prePaidShipments.reduce((sum, s) => sum + s.shippingCost, 0); // Corrected sum
+
+    // 3. Combine them ensuring uniqueness
+    const allShipments = [...shipmentsWithCollections, ...prePaidShipments];
+    const uniqueShipmentIds = new Set();
+    const uniqueShipments = allShipments.filter(s => {
+      if (uniqueShipmentIds.has(s.id)) {
+        return false;
+      }
+      uniqueShipmentIds.add(s.id);
+      return true;
+    });
+
+    return {
+      shipments: uniqueShipments,
+      totalShippingCost: totalShippingCostDelivered + totalShippingCostPrePaid,
+      totalCollectedAmount: totalCollectedAmountDelivered,
+    };
+  }, [shipments, driver.id, selectedDate]);
+
+  const counts = {
+    reparto: shipments.filter(s => s.driverId === driver.id && s.status === 'En ruta').length,
+    pendiente: shipments.filter(s => s.status === 'Pendiente').length,
+    completados: shipments.filter(s => s.driverId === driver.id && s.status === 'Entregado').length,
+    cobroPendiente: shipments.filter(s => s.driverId === driver.id && s.status === 'Cobro Pendiente').length,
+    recogidas_driver: pickups.filter(p => p.driverId === driver.id && p.createdAt && p.createdAt.startsWith(selectedDate)).length,
+  };
+
+  if (!driver) {
+    return <div className="text-center text-xl text-gray-400">Selecciona un transportista.</div>
+  }
+
+  const handleAssignShipment = (shipmentId, driverId) => {
+    onUpdateShipment(shipmentId, {
+      driverId: driverId,
+      status: 'En ruta'
+    });
+    setAssigningShipmentId(null);
+  };
+
+  const handleSortByPopulation = () => {
+     const getCity = (address) => {
+       const parts = address.split(',');
+       return parts.length > 1 ? parts.slice(1).join(',').trim() : address;
+    };
+    const sortedList = [...list].sort((a, b) => getCity(a.destination).localeCompare(getCity(b.destination)));
+    setList(sortedList);
+  };
+
+  const handleDragStart = (e, index) => {
+    dragItem.current = index;
+    e.currentTarget.classList.add('opacity-50');
+  };
+
+  const handleDragEnter = (e, index) => {
+    dragOverItem.current = index;
+  };
+
+  const handleDragEnd = (e) => {
+    e.currentTarget.classList.remove('opacity-50');
+    const newList = [...list];
+    const draggedItemContent = newList.splice(dragItem.current, 1)[0];
+    newList.splice(dragOverItem.current, 0, draggedItemContent);
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setList(newList);
+  };
+
+  const handleSelectShipment = (shipment) => setSelectedShipment(shipment);
+  const handleCloseModal = () => {
+    setSelectedShipment(null);
+    setIsPendingPayment(false);
+    setPaymentNote('');
+    setShowPaymentAlert(false); // Close payment alert too
+    setShowPrintPreview(false); // Close print preview
+  };
+  const handleEditFromDetail = (shipment) => { handleCloseModal(); onEditShipment(shipment); };
+  const handleSignatureSave = (signatureData) => { onUpdateShipment(selectedShipment.id, { signature: signatureData }); setShowSignaturePad(false); setSelectedShipment(p => ({...p, signature: signatureData})); };
+  const handlePhotoUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => { onUpdateShipment(selectedShipment.id, { photo: e.target.result }); setSelectedShipment(p => ({...p, photo: e.target.result})); };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Check for recipient payment OR sender non-payment
+  const handleAttemptMarkAsDelivered = () => {
+    const client = clients.find(c => c.id === selectedShipment.clientId);
+    const isDailySenderPayment = selectedShipment.shippingPayer === 'remitente' && client?.billingType === 'daily';
+    const isSenderPaymentCollected = !!selectedShipment.senderPaymentCollectedAt;
+
+    const needsReimbursement = selectedShipment.collectedAmount > 0;
+    const needsShippingCost = selectedShipment.shippingCost > 0 && selectedShipment.shippingPayer === 'destinatario';
+
+    // CASE 1: Needs payment from RECIPIENT (and alert is on)
+    if (appSettings.showPaymentAlertOnDelivery && (needsReimbursement || needsShippingCost)) {
+      setShowPaymentAlert(true);
+    }
+    // CASE 2: Needs payment from SENDER (and it wasn't pre-paid)
+    else if (isDailySenderPayment && !isSenderPaymentCollected) {
+      // Automatically move to Cobro Pendiente for office to handle
+      onUpdateShipment(selectedShipment.id, {
+        status: 'Cobro Pendiente',
+        deliveredAt: new Date().toISOString(),
+        paymentNotes: "Cobro pendiente del REMITENTE"
+      });
+      handleCloseModal();
+    }
+    // CASE 3: No payment needed from anyone
+    else {
+      onUpdateShipment(selectedShipment.id, { status: 'Entregado', deliveredAt: new Date().toISOString() });
+      handleCloseModal();
+    }
+  };
+
+  // This is ONLY for the recipient payment alert
+  const confirmDeliveryAndPayment = () => {
+    onUpdateShipment(selectedShipment.id, { status: 'Entregado', deliveredAt: new Date().toISOString() });
+    handleCloseModal();
+  };
+
+
+  const handleConfirmPendingPayment = () => {
+    onUpdateShipment(selectedShipment.id, {
+      status: 'Cobro Pendiente',
+      deliveredAt: new Date().toISOString(),
+      paymentNotes: paymentNote
+    });
+    handleCloseModal();
+  };
+
+  const handlePrintTicket = () => {
+    window.print();
+  };
+
+  // --- NUEVO: Funciones para compartir recogida individual ---
+  const formatSinglePickupMessage = (pickup, client) => {
+    const time = new Date(pickup.createdAt).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+    let message = `JUSTIFICANTE DE RECOGIDA\n\n`;
+    message += `Fecha: ${time}\n`;
+    message += `Cliente: ${client.name}\n`;
+    message += `Dirección: ${pickup.address}\n`;
+    message += `Bultos: ${pickup.items}\n`;
+    if (pickup.observations) {
+      message += `Obs: ${pickup.observations}\n`;
+    }
+    message += `\nRecogido por: ${driver.name}\nSUM Logística`;
+    return message;
+  };
+
+  const handleSharePickupEmail = (pickup) => {
+    const client = clients.find(c => c.id === pickup.clientId);
+    if (!client || !client.email) {
+      // Use custom alert later
+      console.error("Este cliente no tiene un email registrado.");
+      return;
+    }
+    const subject = `Justificante de Recogida - ${new Date(pickup.createdAt).toLocaleDateString('es-ES')}`;
+    const body = formatSinglePickupMessage(pickup, client);
+    const mailtoLink = `mailto:${client.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoLink, '_blank');
+  };
+
+  const handleSharePickupWhatsApp = (pickup) => {
+    const client = clients.find(c => c.id === pickup.clientId);
+    if (!client || !client.phone) {
+      // Use custom alert later
+      console.error("Este cliente no tiene un teléfono registrado.");
+      return;
+    }
+    const body = formatSinglePickupMessage(pickup, client);
+    const whatsappLink = `https://wa.me/${client.phone}?text=${encodeURIComponent(body)}`;
+    window.open(whatsappLink, '_blank');
+  };
+  // --- Fin funciones de compartir ---
+
+
+  return (
+    <div className="space-y-8 relative pb-20">
+      <div><h2 className="text-3xl font-bold">Panel del Repartidor</h2><p className="text-gray-400">Hola, {driver.name}.</p></div>
+
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2 bg-gray-700 p-1 rounded-lg w-full sm:w-auto">
+          <button onClick={() => setActiveTab('reparto')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'reparto' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Reparto ({counts.reparto})</button>
+          {appSettings.showPendingAssignTab && <button onClick={() => setActiveTab('pendiente')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'pendiente' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Pendiente ({counts.pendiente})</button>}
+          {/* Nueva Pestaña Recogidas */}
+          <button onClick={() => setActiveTab('recogidas_driver')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'recogidas_driver' ? 'bg-green-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Recogidas ({counts.recogidas_driver})</button>
+          <button onClick={() => setActiveTab('completados')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'completados' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Entregados ({counts.completados})</button>
+          <button onClick={() => setActiveTab('cobroPendiente')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'cobroPendiente' ? 'bg-purple-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Pend. Cobro ({counts.cobroPendiente})</button>
+          <button onClick={() => setActiveTab('cuenta')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'cuenta' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Cuenta</button>
+        </div>
+        {activeTab === 'reparto' && appSettings.allowManualSort && ( // Check settings for ordering
+          <button
+            onClick={handleSortByPopulation}
+            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg text-sm w-full sm:w-auto"
+          >
+            <Shuffle size={16} />
+            Ordenar por Población
+          </button>
+        )}
+        {(activeTab === 'recogidas_driver' || activeTab === 'cuenta') && (
+           <div>
+             <label htmlFor="summary-date-driver" className="text-sm text-gray-400 mr-2">Fecha:</label>
+             <input
+               type="date"
+               id="summary-date-driver"
+               value={selectedDate}
+               onChange={(e) => setSelectedDate(e.target.value)}
+               className="bg-gray-900 text-white p-2 rounded-lg border border-gray-600"
+             />
+           </div>
+        )}
+      </div>
+
+      {activeTab === 'cuenta' ? (
+         <div>
+           <Card>
+             <h3 className="text-xl font-bold mb-4 text-white">Resumen del {new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}</h3>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+               <div className="bg-gray-900 p-4 rounded-lg">
+                 <p className="text-sm text-gray-400">Portes Cobrados</p>
+                 <p className="text-2xl font-bold text-blue-400">{dailySummary.totalShippingCost.toFixed(2)} €</p>
+               </div>
+               <div className="bg-gray-900 p-4 rounded-lg">
+                 <p className="text-sm text-gray-400">Reembolsos Cobrados</p>
+                 <p className="text-2xl font-bold text-yellow-400">{dailySummary.totalCollectedAmount.toFixed(2)} €</p>
+               </div>
+             </div>
+
+             <h4 className="text-lg font-semibold mb-4 text-gray-300">Detalle de Cobros</h4>
+            {dailySummary.shipments.length > 0 ? (
+               <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                 {dailySummary.shipments.map(s => (
+                   <div key={s.id} className="bg-gray-900 p-3 rounded-lg grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 items-center text-sm">
+                     <p className="text-gray-300 truncate col-span-1" title={s.recipient}>
+                       #{s.id} - {s.recipient} {s.status !== 'Entregado' && s.senderPaymentCollectedAt ? <span className="text-xs text-yellow-400">(Pre-pago)</span> : ''}
+                     </p>
+                     <p className="text-blue-300 sm:text-right">Porte: {s.shippingCost.toFixed(2)} €</p>
+                     <p className="text-yellow-300 sm:text-right">Reembolso: {s.collectedAmount.toFixed(2)} €</p>
+                   </div>
+                 ))}
+               </div>
+            ) : (
+              <p className="text-center text-gray-500 py-8">No hay cobros en esta fecha.</p>
+            )}
+           </Card>
+         </div>
+      ) : activeTab === 'recogidas_driver' ? (
+        // --- NUEVA VISTA: LISTA DE RECOGIDAS ---
+        <Card>
+          {pickupList.length > 0 ? (
+            <div className="space-y-4">
+              {pickupList.map((pickup) => {
+                const client = clients.find(c => c.id === pickup.clientId);
+                return (
+                  <div key={pickup.id} className="bg-gray-900 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <div className="flex-grow min-w-0">
+                      <p className="font-bold truncate">{client?.name || 'Cliente Desconocido'}</p>
+                      <p className="text-sm text-gray-400 truncate">{pickup.address}</p>
+                      <p className="text-sm font-semibold text-green-400">{pickup.items} bulto(s) - {new Date(pickup.createdAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
+                      {pickup.observations && <p className="text-sm text-gray-500 italic mt-1">Obs: {pickup.observations}</p>}
+                    </div>
+                    <div className="flex-shrink-0 flex items-center gap-2 w-full sm:w-auto">
+                      <button onClick={() => handleSharePickupWhatsApp(pickup)} className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white font-semibold px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-2" title="Compartir por WhatsApp">
+                        <MessageSquare size={16} />
+                      </button>
+                      <button onClick={() => handleSharePickupEmail(pickup)} className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-2" title="Compartir por Email">
+                        <Mail size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-center text-gray-500 py-8">No has registrado recogidas en esta fecha.</p>
+          )}
+        </Card>
+      ) : (
+         // --- VISTA LISTA DE ENVÍOS (Reparto, Pendiente, etc.) ---
+        <Card>
+          {list.length > 0 ? (
+            <div className="space-y-4">
+              {list.map((shipment, index) => {
+                const destinationParts = shipment.destination.split(',');
+                const address = destinationParts[0]?.trim();
+                const city = destinationParts.length > 1 ? destinationParts.slice(1).join(',').trim() : '';
+                const isDraggable = (activeTab === 'reparto' || activeTab === 'pendiente') && appSettings.allowManualSort; // Check settings for draggable
+                return (
+                  <div
+                    key={shipment.id}
+                    className={`bg-gray-900 p-4 rounded-lg flex items-center gap-3 hover:bg-gray-700 group transition-all ${isDraggable ? 'cursor-move' : ''}`}
+                    draggable={isDraggable}
+                    onDragStart={isDraggable ? (e) => handleDragStart(e, index) : undefined}
+                    onDragEnter={isDraggable ? (e) => handleDragEnter(e, index) : undefined}
+                    onDragEnd={isDraggable ? handleDragEnd : undefined}
+                    onDragOver={isDraggable ? (e) => e.preventDefault() : undefined}
+                  >
+                    {isDraggable && <GripVertical className="text-gray-500 flex-shrink-0" />}
+                    <button onClick={() => handleSelectShipment(shipment)} className="flex-grow text-left flex justify-between items-center min-w-0">
+                      <div className="flex-1 min-w-0"><p className="font-bold truncate">{shipment.recipient}</p><p className="text-sm text-gray-400 truncate">{address}</p><p className="text-sm font-semibold">{city}</p></div>
+                      <div className="flex-shrink-0 ml-4"><StatusBadge status={shipment.status} /></div>
+                    </button>
+                     {activeTab === 'pendiente' && (
+                       <div className="relative">
+                         <button
+                           onClick={() => setAssigningShipmentId(assigningShipmentId === shipment.id ? null : shipment.id)}
+                           className="bg-green-600 hover:bg-green-700 text-white font-semibold px-3 py-2 rounded-lg text-sm flex-shrink-0"
+                         >
+                           Asignar
+                         </button>
+                         {assigningShipmentId === shipment.id && (
+                           <div className="absolute right-0 mt-2 w-48 bg-gray-600 border border-gray-500 rounded-lg shadow-xl z-20">
+                             <ul className="py-1 max-h-48 overflow-y-auto">
+                               {drivers.map(d => (
+                                 <li
+                                   key={d.id}
+                                   onClick={() => handleAssignShipment(shipment.id, d.id)}
+                                   className="px-4 py-2 text-white hover:bg-blue-600 cursor-pointer text-sm"
+                                 >
+                                   {d.name}
+                                 </li>
+                               ))}
+                             </ul>
+                           </div>
+                         )}
+                       </div>
+                     )}
+                  </div>
+                );
+              })}
+            </div>
+          )
+          : (
+            <p className="text-center text-gray-500 py-8">No hay envíos en esta categoría.</p>
+          )}
+        </Card>
+      )}
+
+      {selectedShipment && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-40 p-4">
+          <Card className="w-full max-w-lg relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => handleEditFromDetail(selectedShipment)} className="absolute top-4 left-4 text-gray-400 hover:text-white"><Pencil size={18} /></button>
+            <button onClick={handleCloseModal} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
+            <h3 className="text-2xl font-bold mb-4">Detalle de Entrega #{selectedShipment.id}</h3>
+            <div className="space-y-4">
+              <div><p className="font-bold text-gray-400">Cliente</p><p>{clients.find(c => c.id === selectedShipment.clientId)?.name}</p></div>
+
+              <div>
+                <p className="font-bold text-gray-400">Transportista Asignado</p>
+                <select
+                  value={selectedShipment.driverId || ''}
+                  onChange={(e) => {
+                    const newDriverId = e.target.value ? parseInt(e.target.value, 10) : null;
+                    onUpdateShipment(selectedShipment.id, { driverId: newDriverId, status: newDriverId ? 'En ruta' : 'Pendiente' });
+                    setSelectedShipment(prev => ({ ...prev, driverId: newDriverId, status: newDriverId ? 'En ruta' : 'Pendiente' }));
+                  }}
+                  className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600 mt-1"
+                >
+                  <option value="">-- Sin Asignar --</option>
+                  {drivers.map(d => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div><p className="font-bold text-gray-400">Dirección</p><p>{selectedShipment.destination}</p></div>
+              <div><p className="font-bold text-gray-400">Receptor</p><p>{selectedShipment.recipient}</p></div>
+
+              {/* This is the reimbursement block */}
+              {selectedShipment.collectedAmount > 0 && (<div><p className="font-bold text-gray-400">Reembolso a Cobrar</p><p className="text-yellow-400 text-lg font-bold">{selectedShipment.collectedAmount.toFixed(2)} €</p></div>)}
+
+              {/* NEW BLOCK FOR SHIPPING COST */}
+              {selectedShipment.shippingCost > 0 && selectedShipment.shippingPayer === 'destinatario' && (
+                <div>
+                  <p className="font-bold text-gray-400">Portes a Cobrar</p>
+                  <p className="text-blue-400 text-lg font-bold">{selectedShipment.shippingCost.toFixed(2)} €</p>
+                </div>
+              )}
+
+              <div><p className="font-bold text-gray-400">Paga Portes</p><p className="capitalize">{selectedShipment.shippingPayer}</p></div>
+
+              {selectedShipment.status === 'Cobro Pendiente' && (
+                <div className="bg-purple-500/20 p-3 rounded-lg text-purple-300 space-y-2">
+                  <div>
+                    <p className="font-bold">Pago Pendiente</p>
+                    {selectedShipment.paymentNotes && <p className="text-sm">Nota: {selectedShipment.paymentNotes}</p>}
+                  </div>
+                  <button
+                    onClick={handleAttemptMarkAsDelivered} // Use attempt function here too for consistency
+                    className="w-full bg-green-600 hover:bg-green-700 font-bold py-2 px-3 rounded-lg text-sm"
+                  >
+                    Registrar Pago
+                  </button>
+                </div>
+              )}
+
+              {!['Entregado', 'Cobro Pendiente', 'Incidencia'].includes(selectedShipment.status) && (
+                isPendingPayment ? (
+                   <div className="border-t border-gray-700 pt-4 space-y-3">
+                     <label className="text-white">Nota para el Cobro Pendiente:</label>
+                     <input
+                       type="text"
+                       value={paymentNote}
+                       onChange={(e) => setPaymentNote(e.target.value)}
+                       className="w-full bg-gray-900 text-white p-2 rounded-lg"
+                       placeholder="Ej: Cobrar el lunes, transferir..."
+                     />
+                     <div className="flex space-x-2">
+                       <button onClick={() => setIsPendingPayment(false)} className="flex-1 bg-gray-600 hover:bg-gray-500 font-bold py-2 px-4 rounded-lg">Cancelar</button>
+                       <button onClick={handleConfirmPendingPayment} className="flex-1 bg-purple-600 hover:bg-purple-700 font-bold py-2 px-4 rounded-lg">Confirmar</button>
+                     </div>
+                   </div>
+                 ) : (
+                   <div className="border-t border-gray-700 pt-4 flex flex-col space-y-3">
+                     <div className="flex space-x-2"><button onClick={() => setShowSignaturePad(true)} disabled={!!selectedShipment.signature} className="flex-1 flex items-center justify-center bg-blue-600 hover:bg-blue-700 font-bold py-2 px-4 rounded-lg disabled:bg-gray-500"><Signature size={18} className="mr-2" />{selectedShipment.signature ? 'Firmado' : 'Firma'}</button><button onClick={() => fileInputRef.current.click()} disabled={!!selectedShipment.photo} className="flex-1 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 font-bold py-2 px-4 rounded-lg disabled:bg-gray-500"><Camera size={18} className="mr-2" />{selectedShipment.photo ? 'Foto OK' : 'Foto'}</button><input type="file" accept="image/*" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" /></div>
+                     <div className="flex space-x-2">
+                       <button onClick={() => setIsPendingPayment(true)} className="flex-1 bg-purple-600 hover:bg-purple-700 font-bold py-3 px-4 rounded-lg">Entregar (Cobro Pendiente)</button>
+                       <button onClick={handleAttemptMarkAsDelivered} className="flex-1 bg-green-600 hover:bg-green-700 font-bold py-3 px-4 rounded-lg">Marcar Entregado</button>
+                     </div>
+                   </div>
+                 )
+              )}
+
+              {['Entregado', 'Cobro Pendiente'].includes(selectedShipment.status) && (
+                <div className={`flex items-center gap-4 ${selectedShipment.status === 'Entregado' ? 'bg-green-500/20 text-green-400' : 'bg-purple-500/20 text-purple-400'} py-4 px-4 rounded-lg`}>
+                  <p className="font-bold text-lg flex-1">
+                    {selectedShipment.status === 'Entregado' ? 'Paquete entregado' : 'Paquete entregado (Pago Pendiente)'}
+                  </p>
+                  <button
+                    onClick={() => setShowPrintPreview(true)}
+                    className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2"
+                  >
+                    <Printer size={18} /> Imprimir Ticket
+                  </button>
+                </div>
+              )}
+            </div>
+          </Card>
+          <PrintableTicket ref={ticketRef} shipment={selectedShipment} client={clients.find(c => c.id === selectedShipment.clientId)} />
+        </div>
+      )}
+      {showSignaturePad && <SignaturePad onSave={handleSignatureSave} onCancel={() => setShowSignaturePad(false)} />}
+       {showPaymentAlert && selectedShipment && (
+         <PaymentAlertModal
+           shipment={selectedShipment}
+           onConfirm={confirmDeliveryAndPayment}
+           onCancel={() => setShowPaymentAlert(false)}
+         />
+       )}
+       {showPrintPreview && selectedShipment && (
+         <PrintPreviewModal
+           shipment={selectedShipment}
+           client={clients.find(c => c.id === selectedShipment.clientId)}
+           onCancel={() => setShowPrintPreview(false)}
+           onConfirm={handlePrintTicket}
+         />
+       )}
+
+      {/* --- BOTÓN FLOTANTE ORIGINAL --- */}
+      <div className="fixed bottom-8 right-8 z-30">
+        <button
+          onClick={onCreateShipment} // Llama directamente a crear albarán
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-5 shadow-lg transition-transform duration-200"
+          // style={{ transform: fabOpen ? 'rotate(45deg)' : 'rotate(0)' }} // Estilo de rotación eliminado
+          title="Crear Albarán"
+        >
+          <Plus size={28} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENTE TICKET IMPRIMIBLE ---
+const PrintableTicket = React.forwardRef(({ shipment, client }, ref) => {
+  if (!shipment || !client) return null;
+
+  const printDate = shipment.deliveredAt ? new Date(shipment.deliveredAt).toLocaleString('es-ES') : new Date().toLocaleString('es-ES');
+  const shippingCostPaid = shipment.shippingCost > 0 && shipment.shippingPayer === 'destinatario';
+  const totalCollected = (shipment.collectedAmount || 0) + (shippingCostPaid ? shipment.shippingCost : 0);
+
+  return (
+    <div ref={ref} className="printable-ticket hidden bg-white text-black p-4" style={{ width: '300px', fontFamily: 'sans-serif', fontSize: '12px' }}>
+      <p className="text-center text-sm mb-4 font-bold">RECIBO DE ENTREGA</p>
+
+      <p><strong>Albarán:</strong> #{shipment.id}</p>
+      <p><strong>Fecha:</strong> {printDate}</p>
+
+      <hr className="my-2 border-black" />
+
+      <p><strong>Remitente:</strong></p>
+      <p className="ml-2">{client.name}</p>
+
+      <p className="mt-2"><strong>Destinatario:</strong></p>
+      <p className="ml-2">{shipment.recipient}</p>
+      <p className="ml-2">{shipment.destination}</p>
+
+      <hr className="my-2 border-black" />
+
+      {shipment.collectedAmount > 0 && (
+        <p><strong>Reembolso:</strong> {shipment.collectedAmount.toFixed(2)} €</p>
+      )}
+      {shippingCostPaid && (
+        <p><strong>Portes:</strong> {shipment.shippingCost.toFixed(2)} €</p>
+      )}
+
+      {(shipment.collectedAmount > 0 || shippingCostPaid) && (
+         <p className="font-bold text-lg mt-2">
+           <strong>TOTAL:</strong> {totalCollected.toFixed(2)} €
+         </p>
+      )}
+
+      {shipment.status === 'Entregado' ? (
+         <p className="font-bold text-center text-lg mt-4" style={{color: 'green'}}>PAGADO</p>
+      ) : (
+         <p className="font-bold text-center text-lg mt-4" style={{color: 'red'}}>COBRO PENDIENTE</p>
+      )}
+
+      {shipment.paymentNotes && (
+         <p className="text-center text-xs mt-1">Nota: {shipment.paymentNotes}</p>
+      )}
+    </div>
+  );
+});
+
+
+const SignaturePad = ({ onSave, onCancel }) => {
+  const canvasRef = useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  const getPos = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const event = e.touches ? e.touches[0] : e;
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  };
+
+  const startDrawing = (e) => {
+    setIsDrawing(true);
+    const pos = getPos(e);
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+  };
+
+  const draw = (e) => {
+    if (!isDrawing) return;
+    const pos = getPos(e);
+    const ctx = canvasRef.current.getContext('2d');
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    e.preventDefault(); // Evitar scroll en móvil
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath(); // Reset path
+  };
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    // Ajustar al tamaño del contenedor
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+
+    // Eventos de ratón
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    // Eventos táctiles
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDrawing);
+
+    return () => {
+      canvas.removeEventListener('mousedown', startDrawing);
+      canvas.removeEventListener('mousemove', draw);
+      canvas.removeEventListener('mouseup', stopDrawing);
+      canvas.removeEventListener('mouseout', stopDrawing);
+      canvas.removeEventListener('touchstart', startDrawing);
+      canvas.removeEventListener('touchmove', draw);
+      canvas.removeEventListener('touchend', stopDrawing);
+    };
+  }, []); // El array vacío asegura que esto se ejecute solo una vez
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-lg relative flex flex-col">
+        <button onClick={onCancel} className="absolute top-4 right-4"><X size={24} /></button>
+        <h3 className="text-2xl font-bold mb-4">Firma del Cliente</h3>
+        <canvas ref={canvasRef} className="bg-gray-700 rounded-lg w-full h-48 cursor-crosshair touch-none"></canvas>
+        <div className="flex justify-between mt-4 space-x-2">
+          <button onClick={clearCanvas} className="flex-1 bg-gray-600 py-2 px-4 rounded-lg">Limpiar</button>
+          <button onClick={() => { onSave(canvasRef.current.toDataURL()); }} className="flex-1 bg-blue-600 py-2 px-4 rounded-lg">Guardar</button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+// --- COMPONENTE LOGIN ---
+const LoginScreen = ({ onLogin, drivers }) => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setError('');
+    if (!onLogin(username, password)) {
+      setError('Usuario o contraseña incorrectos.');
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <Card className="w-full max-w-sm">
+        <div className="flex items-center justify-center space-x-3 mb-6">
+          <Truck size={32} className="text-blue-500" />
+          <h1 className="text-2xl font-bold text-white">SUM Logística</h1>
+        </div>
+        <h2 className="text-xl font-semibold text-center text-white mb-6">Iniciar Sesión</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Usuario</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+          <div className="pt-2">
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+              Entrar
+            </button>
+          </div>
+        </form>
+      </Card>
+       <footer className="text-center mt-12 text-gray-500 text-sm"><p>© {new Date().getFullYear()} SUM Logística</p></footer>
+    </div>
+  );
+};
+
+
+// --- COMPONENTE PRINCIPAL APP ---
+export default function App() {
+  const [currentUser, setCurrentUser] = useState(null); // null if logged out, user object if logged in
+  const [impersonatedUser, setImpersonatedUser] = useState(null);
+  const [shipments, setShipments] = useState(initialShipments);
+  const [pickups, setPickups] = useState(initialPickups); // Nuevo estado para recogidas
+  const [clients, setClients] = useState(initialClients); // Ahora es estado para poder añadir email/tel
+  const [drivers, setDrivers] = useState(initialDrivers);
+  const [recipients, setRecipients] = useState(initialRecipients);
+  const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false);
+  const [isPickupModalOpen, setIsPickupModalOpen] = useState(false); // Nuevo estado para modal de recogida
+  const [shipmentToEdit, setShipmentToEdit] = useState(null);
+   // New state for app settings
+  const [appSettings, setAppSettings] = useState({
+    allowManualSort: true,
+    showPendingAssignTab: true,
+    showPaymentAlertOnDelivery: true, // Added new setting
+  });
+
+  const handleLogin = (username, password) => {
+    // Check for admin user
+    if (username === 'admin' && password === 'admin') {
+      setCurrentUser({ id: 999, role: 'admin', name: 'Administrador' });
+      return true;
+    }
+
+    // Check for driver user
+    const driver = drivers.find(d => d.name === username && d.password === password);
+    if (driver) {
+      setCurrentUser({ ...driver, role: 'driver' });
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setImpersonatedUser(null);
+  };
+
+  const handleImpersonateDriver = (driverId) => {
+    const driverToImpersonate = drivers.find(d => d.id === driverId);
+    if (driverToImpersonate) {
+      setImpersonatedUser({ ...driverToImpersonate, role: 'driver' });
+    }
+  };
+
+  const handleStopImpersonating = () => {
+    setImpersonatedUser(null);
+  };
+
+  // --- Gestores de Albaranes (Entregas) ---
+  const handleUpdateShipment = (shipmentId, updates) => setShipments(p => p.map(s => s.id === shipmentId ? { ...s, ...updates } : s));
+  const handleCreateShipment = (newShipment) => {
+    const creatorId = (impersonatedUser || currentUser)?.id || null;
+    setShipments(p => [{
+      ...newShipment,
+      id:Date.now(),
+      status:'Pendiente',
+      deliveredAt: null,
+      paymentNotes: null,
+      senderPaymentCollectedAt: newShipment.senderPaymentCollectedAt || null,
+      paymentCollectedBy: newShipment.senderPaymentCollectedAt ? creatorId : null // Assign collector ID only if paid
+    }, ...p]);
+  }
+  const handleSaveShipment = (shipmentData) => { if (shipmentData.id) handleUpdateShipment(shipmentData.id, shipmentData); else handleCreateShipment(shipmentData); closeShipmentModal(); };
+  const handleDeleteShipment = (shipmentId) => setShipments(p => p.filter(s => s.id !== shipmentId));
+  const openCreateShipmentModal = () => { setShipmentToEdit(null); setIsShipmentModalOpen(true); };
+  const openEditShipmentModal = (shipment) => { setShipmentToEdit(shipment); setIsShipmentModalOpen(true); };
+  const closeShipmentModal = () => { setIsShipmentModalOpen(false); setShipmentToEdit(null); };
+
+  // --- NUEVO: Gestores de Recogidas ---
+  const handleCreatePickup = (newPickupData) => {
+    setPickups(p => [{ ...newPickupData, id: Date.now() }, ...p]);
+    closePickupModal();
+  };
+  const openCreatePickupModal = () => setIsPickupModalOpen(true);
+  const closePickupModal = () => setIsPickupModalOpen(false);
+
+  // --- Gestores de otros datos ---
+  const handleAddRecipient = (newRecipient) => setRecipients(p => [...p, newRecipient]);
+  const handleAddDriver = (newDriverData) => setDrivers(p => [...p, { ...newDriverData, id: Date.now() }]);
+  const handleUpdateDriver = (driverId, updatedData) => setDrivers(p => p.map(d => d.id === driverId ? { ...d, ...updatedData } : d));
+
+  if (!currentUser) {
+    return (
+       <div className="bg-gray-900 min-h-screen text-gray-200 font-sans">
+         <LoginScreen onLogin={handleLogin} />
+       </div>
+    )
+  }
+
+  const activeUser = impersonatedUser || currentUser;
+
+  return (
+    <div className="bg-gray-900 min-h-screen text-gray-200 font-sans p-4 sm:p-6 lg:p-8">
+      <style>{`
+         @media print {
+           body * {
+             visibility: hidden;
+           }
+           .printable-ticket, .printable-ticket * {
+             visibility: visible;
+           }
+           .printable-ticket {
+             position: absolute;
+             left: 0;
+             top: 0;
+             width: 100%;
+             background-color: white !important;
+             color: black !important;
+           }
+           .app-container {
+               display: none !important;
+           }
+         }
+         /* Ocultar scrollbar pero permitir scroll */
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 5px;
+        }
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background-color: #4a5568; /* gray-600 */
+          border-radius: 20px;
+          border: 3px solid transparent;
+        }
+        /* Para Firefox */
+        .overflow-y-auto {
+          scrollbar-width: thin;
+          scrollbar-color: #4a5568 transparent;
+        }
+        .touch-none {
+          touch-action: none;
+        }
+       `}</style>
+      <div className="app-container max-w-7xl mx-auto">
+        <header className="flex flex-col sm:flex-row justify-between items-center mb-8 pb-4 border-b border-gray-700">
+          <div className="flex items-center space-x-3 mb-4 sm:mb-0"><Truck size={32} className="text-blue-500" /><h1 className="text-2xl font-bold">SUM Logística</h1></div>
+           {impersonatedUser ? (
+             <div className="flex items-center space-x-4">
+               <span className="text-yellow-400">Viendo como: <strong>{impersonatedUser.name}</strong></span>
+               <button onClick={handleStopImpersonating} className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 p-2 rounded-lg text-white font-semibold">
+                 <LogOut size={20} className="transform -scale-x-100" /> Volver
+               </button>
+             </div>
+           ) : (
+             <div className="flex items-center space-x-4">
+               <span className="text-gray-300">Bienvenido, <strong>{currentUser.name}</strong></span>
+               <button onClick={handleLogout} title="Cerrar Sesión" className="bg-red-600 hover:bg-red-700 p-2 rounded-lg text-white">
+                 <LogOut size={20} />
+               </button>
+             </div>
+           )}
+        </header>
+
+        <main>
+          {activeUser.role === 'admin' ?
+            <AdminDashboard
+              shipments={shipments}
+              pickups={pickups}
+              clients={clients}
+              drivers={drivers}
+              onAddDriver={handleAddDriver}
+              onUpdateDriver={handleUpdateDriver}
+              onEditShipment={openEditShipmentModal}
+              onDeleteShipment={handleDeleteShipment}
+              onImpersonateDriver={handleImpersonateDriver}
+              appSettings={appSettings} // Pass settings state
+              onUpdateSettings={(newSettings) => setAppSettings(newSettings)} // Pass inline function calling setter
+            /> :
+            <DriverView
+              driver={activeUser}
+              shipments={shipments}
+              pickups={pickups}
+              clients={clients}
+              drivers={drivers}
+              onUpdateShipment={handleUpdateShipment}
+              onCreateShipment={openCreateShipmentModal}
+              onEditShipment={openEditShipmentModal}
+              onCreatePickup={openCreatePickupModal}
+              appSettings={appSettings} // Pass settings
+            />
+          }
+        </main>
+         <footer className="text-center mt-12 text-gray-500 text-sm"><p>© {new Date().getFullYear()} SUM Logística</p></footer>
+      </div>
+
+      <ShipmentModal
+        isOpen={isShipmentModalOpen}
+        onCancel={closeShipmentModal}
+        onSave={handleSaveShipment}
+        shipmentToEdit={shipmentToEdit}
+        clients={clients}
+        recipients={recipients}
+        drivers={drivers}
+        onAddRecipient={handleAddRecipient}
+        currentUser={activeUser} // Pass current user
+      />
+
+      <PickupModal
+        isOpen={isPickupModalOpen}
+        onCancel={closePickupModal}
+        onSave={handleCreatePickup}
+        clients={clients}
+        currentUser={activeUser}
+      />
+    </div>
+  );
+} 
