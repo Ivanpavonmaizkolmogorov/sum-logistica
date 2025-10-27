@@ -188,6 +188,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
       priority: formData.priority || 'Normal',
       senderPaymentCollectedAt: formData.senderPaymentCollected ? new Date().toISOString() : null,
       paymentCollectedBy: formData.senderPaymentCollected ? currentUser.id : null,
+      status: isEditing ? shipmentToEdit.status : 'Pendiente', // Asegurar que el estado se establece
     };
     delete shipmentData.poblacion;
     delete shipmentData.senderPaymentCollected;
