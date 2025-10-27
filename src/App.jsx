@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
-  MapPin, Truck, Package, Users, BarChart2, CheckCircle, Clock, Signature,
+  MapPin, Truck, Package, Users, BarChart2, CheckCircle, Clock, Signature, Search, Filter, Briefcase,
   Camera, X, FileText, Plus, LocateFixed, GripVertical, Shuffle, UserPlus,
   Pencil, Trash2, DollarSign, ChevronDown, ChevronUp, LogOut, LogIn, Settings,
   ToggleLeft, ToggleRight, AlertTriangle, Printer,
@@ -196,6 +196,61 @@ const DriverModal = ({ onSave, onCancel, driverToEdit }) => {
   );
 };
 
+// --- NUEVO MODAL DE CLIENTES ---
+const ClientModal = ({ onSave, onCancel, clientToEdit }) => {
+  const isEditing = clientToEdit && clientToEdit.id;
+
+  const [formData, setFormData] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    email: '',
+    billingType: 'monthly',
+  });
+
+  useEffect(() => {
+    if (isEditing) {
+      setFormData(clientToEdit);
+    } else {
+      setFormData({ name: '', address: '', phone: '', email: '', billingType: 'monthly' });
+    }
+  }, [clientToEdit, isEditing]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({ ...formData, id: isEditing ? clientToEdit.id : undefined });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-lg relative">
+        <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
+        <h3 className="text-2xl font-bold mb-4 text-white">{isEditing ? 'Editar' : 'Crear'} Cliente</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div><label className="block text-sm font-medium text-gray-400 mb-1">Nombre</label><input type="text" name="name" value={formData.name} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" /></div>
+          <div><label className="block text-sm font-medium text-gray-400 mb-1">Dirección</label><input type="text" name="address" value={formData.address} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" /></div>
+          <div className="flex space-x-4">
+            <div className="flex-1"><label className="block text-sm font-medium text-gray-400 mb-1">Teléfono</label><input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" /></div>
+            <div className="flex-1"><label className="block text-sm font-medium text-gray-400 mb-1">Email</label><input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" /></div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Tipo de Facturación</label>
+            <select name="billingType" value={formData.billingType} onChange={handleChange} className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600"><option value="monthly">Mensual</option><option value="daily">Diaria</option></select>
+          </div>
+          <div className="pt-4">
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors text-lg">{isEditing ? 'Guardar Cambios' : 'Crear Cliente'}</button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+};
+
 
 const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, recipients, drivers, onAddRecipient, currentUser }) => {
   const isEditing = shipmentToEdit && shipmentToEdit.id;
@@ -216,6 +271,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
   };
 
   const [formData, setFormData] = useState(initialFormState);
+  const [saveNewClient, setSaveNewClient] = useState(false); // NUEVO: Estado para guardar nuevo cliente
   const [saveNewRecipient, setSaveNewRecipient] = useState(false);
   const [showSenderPayment, setShowSenderPayment] = useState(false);
   const [showSenderPaymentAlert, setShowSenderPaymentAlert] = useState(false);
@@ -244,17 +300,21 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
   }, [shipmentToEdit, isOpen, clients]);
 
   useEffect(() => {
-    if (formData.clientId && formData.shippingPayer === 'remitente') {
-      const client = clients.find(c => c.id === formData.clientId);
-      if (client && client.billingType === 'daily') {
-        setShowSenderPayment(true);
-      } else {
-        setShowSenderPayment(false);
+    let isDailyClient = false;
+    const isNewClient = formData.clientName && !formData.clientId && !clients.some(c => `${c.name} (Cliente)` === formData.clientName);
+
+    if (formData.shippingPayer === 'remitente') {
+      if (formData.clientId) { // Cliente existente
+        const client = clients.find(c => c.id === formData.clientId);
+        if (client && client.billingType === 'daily') {
+          isDailyClient = true;
+        }
+      } else if (isNewClient) { // Cliente nuevo, se asume cobro diario
+        isDailyClient = true;
       }
-    } else {
-      setShowSenderPayment(false);
     }
-  }, [formData.clientId, formData.shippingPayer, clients]);
+    setShowSenderPayment(isDailyClient);
+  }, [formData.clientId, formData.clientName, formData.shippingPayer, clients]);
 
 
   const contactOptions = [
@@ -271,6 +331,9 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
       clientId: r.clientId
     }))
   ];
+
+  // NUEVO: Detecta si el nombre del cliente es nuevo
+  const isNewClient = formData.clientName && !formData.clientId && !clients.some(c => `${c.name} (Cliente)` === formData.clientName);
 
   const isNewRecipient = formData.recipient && !recipients.some(r => r.name === formData.recipient) && !clients.some(c => `${c.name} (Cliente)` === formData.recipient);
 
@@ -342,6 +405,20 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
   };
 
   const runSave = () => {
+    let finalClientId = formData.clientId;
+
+    // NUEVO: Lógica para guardar el nuevo cliente antes de guardar el albarán
+    if (saveNewClient && isNewClient) {
+      const newClient = {
+        id: Date.now(),
+        name: formData.clientName,
+        address: '', // Se puede dejar vacío o pedir más datos
+        billingType: 'daily' // NUEVO: Los clientes creados al vuelo son de cobro diario
+      };
+      onAddClient(newClient);
+      finalClientId = newClient.id; // Usamos el ID del cliente recién creado
+    }
+
     if (saveNewRecipient && isNewRecipient) {
       const newRecipient = {
         id: Date.now() + 1000,
@@ -356,6 +433,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
 
     const shipmentData = {
       ...formData,
+      clientId: finalClientId, // Usamos el ID final
       destination: fullDestination,
       id: isEditing ? shipmentToEdit.id : undefined,
       items: parseInt(formData.items, 10) || 1,
@@ -430,6 +508,12 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
               </div>
             </div>
 
+            {isNewClient && (
+              <div className="bg-gray-700/50 p-3 rounded-lg">
+                <label className="flex items-center space-x-2 text-white"><input type="checkbox" checked={saveNewClient} onChange={(e) => setSaveNewClient(e.target.checked)} className="h-4 w-4 rounded bg-gray-600" /><span>Guardar nuevo cliente "{formData.clientName}"</span></label>
+              </div>
+            )}
+
             {showSenderPayment && (
                <div className="bg-gray-700/50 p-3 rounded-lg">
                  <label className="flex items-center space-x-2 text-white">
@@ -438,8 +522,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
                      checked={formData.senderPaymentCollected}
                      onChange={(e) => setFormData(prev => ({...prev, senderPaymentCollected: e.target.checked}))}
                      className="h-4 w-4 rounded bg-gray-600"
-                   />
-                   <span>¿Cobrado al remitente?</span>
+                   /><span>¿Cobrado al remitente?</span>
                  </label>
               </div>
             )}
@@ -473,7 +556,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
               {formData.merchandisePhoto && <img src={formData.merchandisePhoto} alt="Vista previa" className="mt-4 rounded-lg max-h-40 mx-auto" />}
             </div>
             <div className="pt-4">
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg" disabled={!formData.clientId || !formData.recipient || !formData.destination || !formData.poblacion}>
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">
                 {isEditing ? 'Guardar Cambios' : 'Generar Albarán'}
               </button>
             </div>
@@ -818,21 +901,67 @@ const AdminSettings = ({ appSettings, onUpdateSettings }) => {
   );
 };
 
+// --- NUEVA VISTA DE GESTIÓN DE CLIENTES ---
+const ClientManagementView = ({ clients, onAdd, onEdit, onDelete }) => {
+  return (
+    <Card>
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-bold text-white">Gestión de Clientes</h3>
+        <button onClick={onAdd} className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 font-semibold py-2 px-4 rounded-lg">
+          <UserPlus size={18} /> Nuevo Cliente
+        </button>
+      </div>
+      <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+        {clients.sort((a, b) => a.name.localeCompare(b.name)).map(client => (
+          <div key={client.id} className="bg-gray-900 p-4 rounded-lg flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-lg truncate">{client.name}</p>
+              <p className="text-sm text-gray-400 truncate">{client.address}</p>
+              <div className="flex gap-4 mt-2 text-sm">
+                {client.phone && <p className="text-gray-300 flex items-center gap-1"><MessageSquare size={14}/> {client.phone}</p>}
+                {client.email && <p className="text-gray-300 flex items-center gap-1"><Mail size={14}/> {client.email}</p>}
+              </div>
+            </div>
+            <div className="flex items-center flex-shrink-0 gap-3 w-full sm:w-auto">
+              <span className={`capitalize px-3 py-1 text-xs font-medium rounded-full ${client.billingType === 'daily' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                {client.billingType === 'daily' ? 'Diaria' : 'Mensual'}
+              </span>
+              <button onClick={() => onEdit(client)} className="text-gray-400 hover:text-white p-2 rounded-md hover:bg-gray-700"><Pencil size={18} /></button>
+              <button onClick={() => onDelete(client)} className="text-red-500 hover:text-red-400 p-2 rounded-md hover:bg-gray-700"><Trash2 size={18} /></button>
+            </div>
+          </div>
+        ))}
+        {clients.length === 0 && <p className="text-center text-gray-500 py-8">No hay clientes registrados.</p>}
+      </div>
+    </Card>
+  );
+};
+
+
 // --- PANTALLAS PRINCIPALES ---
 
 const AdminDashboard = ({
   shipments, pickups, clients, drivers,
   onAddDriver, onUpdateDriver, onEditShipment, onDeleteShipment, onImpersonateDriver,
+  onAddClient, onUpdateClient, onDeleteClient,
   appSettings, onUpdateSettings
 }) => {
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [clientToEdit, setClientToEdit] = useState(null);
   const [driverToEdit, setDriverToEdit] = useState(null);
   const [shipmentToDelete, setShipmentToDelete] = useState(null);
+  const [clientToDelete, setClientToDelete] = useState(null); // Para confirmación de borrado
   const [expandedSummaryDriverId, setExpandedSummaryDriverId] = useState(null);
   const [sortOrder, setSortOrder] = useState('default');
   const [statusFilter, setStatusFilter] = useState('activos');
   const [view, setView] = useState('dashboard'); // 'dashboard', 'activity', 'settings'
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filterDriverId, setFilterDriverId] = useState('');
+  const [filterHasReembolso, setFilterHasReembolso] = useState(false);
+  const [filterHasIncidencia, setFilterHasIncidencia] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); 
 
   const stats = {
     total: shipments.length,
@@ -842,15 +971,40 @@ const AdminDashboard = ({
   };
 
   const sortedShipments = React.useMemo(() => {
-    let filteredShipments;
+    let filteredShipments = [...shipments];
 
-    switch (statusFilter) {
-      case 'pendientes': filteredShipments = shipments.filter(s => s.status === 'Pendiente'); break;
-      case 'en_reparto': filteredShipments = shipments.filter(s => s.status === 'En ruta'); break;
-      case 'entregados': filteredShipments = shipments.filter(s => s.status === 'Entregado'); break;
-      case 'incidencia': filteredShipments = shipments.filter(s => s.status === 'Incidencia'); break;
-      case 'activos': filteredShipments = shipments.filter(s => s.status === 'Pendiente' || s.status === 'En ruta'); break;
-      case 'todos': default: filteredShipments = [...shipments]; break;
+    // 1. Filtro por estado principal
+    if (statusFilter !== 'todos') {
+      const activeStatuses = ['Pendiente', 'En ruta'];
+      filteredShipments = filteredShipments.filter(s => {
+        if (statusFilter === 'activos') return activeStatuses.includes(s.status);
+        if (statusFilter === 'pendientes') return s.status === 'Pendiente';
+        if (statusFilter === 'en_reparto') return s.status === 'En ruta';
+        if (statusFilter === 'entregados') return s.status === 'Entregado';
+        if (statusFilter === 'incidencia') return s.status === 'Incidencia';
+        return true;
+      });
+    }
+
+    // 2. Filtros avanzados
+    if (filterDriverId) {
+      filteredShipments = filteredShipments.filter(s => s.driverId === parseInt(filterDriverId, 10));
+    }
+    if (filterHasReembolso) {
+      filteredShipments = filteredShipments.filter(s => s.collectedAmount > 0);
+    }
+    if (filterHasIncidencia) {
+      filteredShipments = filteredShipments.filter(s => s.status === 'Incidencia');
+    }
+
+    // 3. Búsqueda por término
+    if (searchTerm) {
+      const lowercasedTerm = searchTerm.toLowerCase();
+      filteredShipments = filteredShipments.filter(s =>
+        s.recipient.toLowerCase().includes(lowercasedTerm) ||
+        s.destination.toLowerCase().includes(lowercasedTerm) ||
+        s.id.toString().includes(lowercasedTerm)
+      );
     }
 
     const getCity = (address) => {
@@ -863,7 +1017,7 @@ const AdminDashboard = ({
       case 'transportista': return filteredShipments.sort((a, b) => (drivers.find(d => d.id === a.driverId)?.name || '').localeCompare(drivers.find(d => d.id === b.driverId)?.name || ''));
       case 'default': default: return filteredShipments.sort((a, b) => a.id - b.id);
     }
-  }, [shipments, statusFilter, sortOrder, drivers]);
+  }, [shipments, statusFilter, sortOrder, drivers, searchTerm, filterDriverId, filterHasReembolso, filterHasIncidencia]);
 
   const activityData = React.useMemo(() => {
     const activeShipments = shipments.filter(s => s.status === 'Pendiente' || s.status === 'En ruta');
@@ -940,6 +1094,20 @@ const AdminDashboard = ({
   const handleOpenEditModal = (driver) => { setDriverToEdit(driver); setIsDriverModalOpen(true); };
   const confirmDelete = () => { if(shipmentToDelete) { onDeleteShipment(shipmentToDelete.id); setShipmentToDelete(null); } };
 
+  // --- NUEVO: Gestores de Clientes ---
+  const handleSaveClient = (clientData) => {
+    if (clientData.id) onUpdateClient(clientData.id, clientData); else onAddClient(clientData);
+    setIsClientModalOpen(false); setClientToEdit(null);
+  };
+  const handleOpenCreateClientModal = () => { setClientToEdit(null); setIsClientModalOpen(true); };
+  const handleOpenEditClientModal = (client) => { setClientToEdit(client); setIsClientModalOpen(true); };
+  const handleDeleteClientClick = (client) => {
+    // Aquí podrías añadir una confirmación más robusta, por ahora es directo
+    if (window.confirm(`¿Seguro que quieres eliminar al cliente "${client.name}"? Esto no se puede deshacer.`)) {
+      onDeleteClient(client.id);
+    }
+  };
+
   // --- NUEVO: Funciones de compartir resumen de recogidas ---
   const formatBatchPickupMessage = (client, pickups) => {
     const date = new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES');
@@ -993,6 +1161,7 @@ const AdminDashboard = ({
         <div className="flex items-center space-x-2 bg-gray-700 p-1 rounded-lg">
           <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-md font-semibold ${view === 'dashboard' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>General</button>
           <button onClick={() => setView('activity')} className={`px-4 py-2 rounded-md font-semibold ${view === 'activity' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Actividad y Resúmenes</button>
+          <button onClick={() => setView('clients')} className={`px-4 py-2 rounded-md font-semibold ${view === 'clients' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Clientes</button>
           <button onClick={() => setView('settings')} className={`px-4 py-2 rounded-md font-semibold ${view === 'settings' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Ajustes</button>
         </div>
       </div>
@@ -1011,12 +1180,39 @@ const AdminDashboard = ({
               <Card>
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                   <h3 className="text-xl font-bold">Gestión de Envíos</h3>
+                  <div className="relative flex-1 max-w-xs">
+                    <input
+                      type="text"
+                      placeholder="Buscar por ID, destinatario, dirección..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-gray-900 text-white p-2 pl-10 rounded-lg border border-gray-600"
+                    />
+                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                   <div className="flex items-center gap-2">
                     <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="activos">Activos</option><option value="todos">Todos</option><option value="pendientes">Pendientes</option><option value="en_reparto">En Reparto</option><option value="entregados">Entregados</option><option value="incidencia">Incidencias</option></select>
                     <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="default">Ruta</option><option value="poblacion">Población</option><option value="transportista">Transportista</option></select>
                   </div>
+                  <button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg text-sm">
+                    <Filter size={16} /> Filtros Avanzados {showAdvancedFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </button>
                 </div>
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+
+                {showAdvancedFilters && (
+                  <div className="bg-gray-900 p-4 rounded-lg mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <select value={filterDriverId} onChange={(e) => setFilterDriverId(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg">
+                      <option value="">Todos los transportistas</option>
+                      {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                    <label className="flex items-center space-x-2 text-white"><input type="checkbox" checked={filterHasReembolso} onChange={(e) => setFilterHasReembolso(e.target.checked)} className="h-4 w-4 rounded bg-gray-600" /><span>Con reembolso</span></label>
+                    <label className="flex items-center space-x-2 text-white"><input type="checkbox" checked={filterHasIncidencia} onChange={(e) => setFilterHasIncidencia(e.target.checked)} className="h-4 w-4 rounded bg-gray-600" /><span>Con incidencia</span></label>
+                  </div>
+                )}
+
+                <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2">
                   {sortedShipments.map(shipment => (
                     <div key={shipment.id} className="bg-gray-900 p-4 rounded-lg flex justify-between items-center">
                       <div className="flex-1 min-w-0"><p className="font-bold truncate">{shipment.recipient}</p><p className="text-sm text-gray-400 truncate">{shipment.destination.split(',')[0]}</p><p className="text-sm font-semibold">{shipment.destination.split(',').slice(1).join(',')}</p></div>
@@ -1199,11 +1395,21 @@ const AdminDashboard = ({
          </div>
       )}
 
+      {view === 'clients' && (
+        <ClientManagementView
+          clients={clients}
+          onAdd={handleOpenCreateClientModal}
+          onEdit={handleOpenEditClientModal}
+          onDelete={handleDeleteClientClick}
+        />
+      )}
+
        {view === 'settings' && (
-         <AdminSettings appSettings={appSettings} onUpdateSettings={setAppSettings} />
+         <AdminSettings appSettings={appSettings} onUpdateSettings={onUpdateSettings} />
        )}
 
 
+      {isClientModalOpen && <ClientModal clientToEdit={clientToEdit} onSave={handleSaveClient} onCancel={() => { setIsClientModalOpen(false); setClientToEdit(null); }} />}
       {isDriverModalOpen && <DriverModal driverToEdit={driverToEdit} onSave={handleSaveDriver} onCancel={() => { setIsDriverModalOpen(false); setDriverToEdit(null); }} />}
       <DeleteConfirmationModal shipment={shipmentToDelete} onConfirm={confirmDelete} onCancel={() => setShipmentToDelete(null)} />
     </div>
@@ -1364,18 +1570,28 @@ const DriverView = ({
 
   // Check for recipient payment OR sender non-payment
   const handleAttemptMarkAsDelivered = () => {
-    const client = clients.find(c => c.id === selectedShipment.clientId);
-    const isDailySenderPayment = selectedShipment.shippingPayer === 'remitente' && client?.billingType === 'daily';
+    const senderClient = clients.find(c => c.id === selectedShipment.clientId);
+    const isDailySenderPayment = selectedShipment.shippingPayer === 'remitente' && senderClient?.billingType === 'daily';
     const isSenderPaymentCollected = !!selectedShipment.senderPaymentCollectedAt;
 
     const needsReimbursement = selectedShipment.collectedAmount > 0;
-    const needsShippingCost = selectedShipment.shippingCost > 0 && selectedShipment.shippingPayer === 'destinatario';
+
+    // Check if recipient is a daily client and has to pay for shipping
+    let isDailyRecipientPayment = false;
+    if (selectedShipment.shippingPayer === 'destinatario' && selectedShipment.shippingCost > 0) {
+      const recipientAsClient = clients.find(c => `${c.name} (Cliente)` === selectedShipment.recipient);
+      if (recipientAsClient && recipientAsClient.billingType === 'daily') {
+        isDailyRecipientPayment = true;
+      }
+    }
+
+    const needsShippingCostFromNonDaily = selectedShipment.shippingCost > 0 && selectedShipment.shippingPayer === 'destinatario' && !isDailyRecipientPayment;
 
     // CASE 1: Needs payment from RECIPIENT (and alert is on)
-    if (appSettings.showPaymentAlertOnDelivery && (needsReimbursement || needsShippingCost)) {
+    if (appSettings.showPaymentAlertOnDelivery && (needsReimbursement || needsShippingCostFromNonDaily || isDailyRecipientPayment)) {
       setShowPaymentAlert(true);
     }
-    // CASE 2: Needs payment from SENDER (and it wasn't pre-paid)
+    // CASE 2: Needs payment from SENDER (and it wasn't pre-paid at origin)
     else if (isDailySenderPayment && !isSenderPaymentCollected) {
       // Automatically move to Cobro Pendiente for office to handle
       onUpdateShipment(selectedShipment.id, {
@@ -1963,6 +2179,7 @@ export default function App() {
   const [recipients, setRecipients] = useState(initialRecipients);
   const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false);
   const [isPickupModalOpen, setIsPickupModalOpen] = useState(false); // Nuevo estado para modal de recogida
+  const [isClientModalOpen, setIsClientModalOpen] = useState(false); // NUEVO: Estado para modal de cliente
   const [shipmentToEdit, setShipmentToEdit] = useState(null);
    // New state for app settings
   const [appSettings, setAppSettings] = useState({
@@ -2036,6 +2253,11 @@ export default function App() {
   const handleAddRecipient = (newRecipient) => setRecipients(p => [...p, newRecipient]);
   const handleAddDriver = (newDriverData) => setDrivers(p => [...p, { ...newDriverData, id: Date.now() }]);
   const handleUpdateDriver = (driverId, updatedData) => setDrivers(p => p.map(d => d.id === driverId ? { ...d, ...updatedData } : d));
+  // NUEVO: Gestores de Clientes
+  const handleAddClient = (newClientData) => setClients(p => [...p, { ...newClientData, id: Date.now() }]);
+  const handleUpdateClient = (clientId, updatedData) => setClients(p => p.map(c => c.id === clientId ? { ...c, ...updatedData } : c));
+  const handleDeleteClient = (clientId) => setClients(p => p.filter(c => c.id !== clientId));
+
 
   if (!currentUser) {
     return (
@@ -2124,7 +2346,10 @@ export default function App() {
               onDeleteShipment={handleDeleteShipment}
               onImpersonateDriver={handleImpersonateDriver}
               appSettings={appSettings} // Pass settings state
-              onUpdateSettings={(newSettings) => setAppSettings(newSettings)} // Pass inline function calling setter
+              onUpdateSettings={setAppSettings}
+              onAddClient={handleAddClient}
+              onUpdateClient={handleUpdateClient}
+              onDeleteClient={handleDeleteClient}
             /> :
             <DriverView
               driver={activeUser}
@@ -2152,6 +2377,7 @@ export default function App() {
         recipients={recipients}
         drivers={drivers}
         onAddRecipient={handleAddRecipient}
+        onAddClient={handleAddClient}
         currentUser={activeUser} // Pass current user
       />
 
