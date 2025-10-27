@@ -21,6 +21,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
     shippingCost: '',
     merchandisePhoto: null,
     senderPaymentCollected: false,
+    isRecipientFreeTextDailyPayer: false, // Nuevo campo
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -52,21 +53,35 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
   }, [shipmentToEdit, isOpen, clients]);
 
   useEffect(() => {
-    let isDailyClient = false;
-    const isNewClientDetected = formData.clientName && !formData.clientId && !clients.some(c => `${c.name} (Cliente)` === formData.clientName);
-
     if (formData.shippingPayer === 'remitente') {
+      let isDailyClient = false;
+      // Caso 1: Es un cliente existente seleccionado de la lista
       if (formData.clientId) { // Cliente existente
         const client = clients.find(c => c.id === formData.clientId);
         if (client && client.billingType === 'daily') {
           isDailyClient = true;
         }
-      } else if (isNewClientDetected) { // Cliente nuevo, se asume cobro diario
+      } 
+      // Caso 2: Es un cliente nuevo de escritura libre (no está en la lista de clientes)
+      else if (formData.clientName && !clients.some(c => `${c.name} (Cliente)` === formData.clientName)) {
         isDailyClient = true;
       }
+      setShowSenderPayment(isDailyClient);
+    } else {
+      setShowSenderPayment(false);
     }
-    setShowSenderPayment(isDailyClient);
   }, [formData.clientId, formData.clientName, formData.shippingPayer, clients]);
+
+  // Efecto para auto-marcar el cobro diario para destinatarios de texto libre
+  useEffect(() => {
+    const isNew = formData.recipient && !recipients.some(r => r.name === formData.recipient) && !clients.some(c => `${c.name} (Cliente)` === formData.recipient);
+    const shouldBeDailyPayer = isNew && formData.shippingPayer === 'destinatario';
+    if (shouldBeDailyPayer) {
+      setFormData(prev => ({ ...prev, isRecipientFreeTextDailyPayer: true }));
+    } else if (formData.shippingPayer !== 'destinatario') {
+      setFormData(prev => ({ ...prev, isRecipientFreeTextDailyPayer: false }));
+    }
+  }, [formData.shippingPayer, formData.recipient, clients, recipients]);
 
   const contactOptions = [
     ...clients.map(c => ({
@@ -85,6 +100,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
 
   const isNewClient = formData.clientName && !formData.clientId && !clients.some(c => `${c.name} (Cliente)` === formData.clientName);
   const isNewRecipient = formData.recipient && !recipients.some(r => r.name === formData.recipient) && !clients.some(c => `${c.name} (Cliente)` === formData.recipient);
+  const showRecipientDailyPayerCheckbox = isNewRecipient && formData.shippingPayer === 'destinatario';
 
   const handleClientSelect = (option) => {
     setFormData(prev => ({
@@ -152,6 +168,9 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
   };
 
   const runSave = async () => {
+    console.log("--- ShipmentModal: runSave ---");
+    console.log("Estado del formulario ANTES de procesar:", formData);
+
     let finalClientId = formData.clientId;
 
     if (saveNewClient && isNewClient) {
@@ -192,6 +211,9 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
     };
     delete shipmentData.poblacion;
     delete shipmentData.senderPaymentCollected;
+
+    console.log("Datos del albarán listos para guardar:", shipmentData);
+
     onSave(shipmentData);
   };
 

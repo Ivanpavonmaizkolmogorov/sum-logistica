@@ -164,34 +164,46 @@ export const DriverView = ({
   };
 
   const handleAttemptMarkAsDelivered = () => {
+    console.log("--- Intento de Marcar como Entregado ---");
+    console.log("Albarán:", selectedShipment);
+    console.log("Ajustes:", appSettings);
+    console.log("Clientes:", clients);
+
     const senderClient = clients.find(c => c.id === selectedShipment.clientId);
     const isDailySenderPayment = selectedShipment.shippingPayer === 'remitente' && senderClient?.billingType === 'daily';
-    const isSenderPaymentCollected = !!selectedShipment.senderPaymentCollectedAt;
-
+  
     const needsReimbursement = selectedShipment.collectedAmount > 0;
-
-    let isDailyRecipientPayment = false;
-    if (selectedShipment.shippingPayer === 'destinatario' && selectedShipment.shippingCost > 0) {
+  
+    // Lógica para determinar si se debe cobrar el porte al destinatario
+    let shouldCollectShippingCost = false;
+    if (selectedShipment.shippingPayer === 'destinatario') { // <-- CORRECCIÓN: Se elimina la comprobación de shippingCost > 0
       const recipientAsClient = clients.find(c => `${c.name} (Cliente)` === selectedShipment.recipient);
-      if (recipientAsClient && recipientAsClient.billingType === 'daily') {
-        isDailyRecipientPayment = true;
+      // Se cobra si es un cliente de cobro diario O si es un destinatario libre marcado para ello.
+      if ((recipientAsClient && recipientAsClient.billingType === 'daily') ||
+          (!recipientAsClient && selectedShipment.isRecipientFreeTextDailyPayer)) {
+        shouldCollectShippingCost = true;
       }
     }
 
-    const needsShippingCostFromNonDaily = selectedShipment.shippingCost > 0 && selectedShipment.shippingPayer === 'destinatario' && !isDailyRecipientPayment;
+    console.log(`¿Necesita Reembolso?: ${needsReimbursement}`);
+    console.log(`¿Debe cobrar portes al destinatario?: ${shouldCollectShippingCost}`);
+    console.log(`¿Es pago diario por remitente?: ${isDailySenderPayment}`);
+    console.log(`¿Es destinatario libre de cobro diario?: ${!!selectedShipment.isRecipientFreeTextDailyPayer}`);
+    console.log(`¿Porte de remitente ya cobrado?: ${!!selectedShipment.senderPaymentCollectedAt}`);
 
-    if (appSettings.showPaymentAlertOnDelivery && (needsReimbursement || needsShippingCostFromNonDaily || isDailyRecipientPayment)) {
+    if (appSettings.showPaymentAlertOnDelivery && (needsReimbursement || shouldCollectShippingCost)) { // <-- MODIFICACIÓN CLAVE
+      console.log("DECISIÓN: Mostrar alerta de cobro en destino.");
       setShowPaymentAlert(true);
-    }
-    else if (isDailySenderPayment && !isSenderPaymentCollected) {
+    } else if (isDailySenderPayment && !selectedShipment.senderPaymentCollectedAt) {
+      console.log("DECISIÓN: Marcar como 'Cobro Pendiente' (remitente diario no pagado).");
       onUpdateShipment(selectedShipment.id, {
         status: 'Cobro Pendiente',
         deliveredAt: new Date().toISOString(),
         paymentNotes: "Cobro pendiente del REMITENTE"
       });
       handleCloseModal();
-    }
-    else {
+    } else { // Si no hay nada que cobrar, se entrega directamente
+      console.log("DECISIÓN: Marcar como 'Entregado' directamente.");
       onUpdateShipment(selectedShipment.id, { status: 'Entregado', deliveredAt: new Date().toISOString() });
       handleCloseModal();
     }
