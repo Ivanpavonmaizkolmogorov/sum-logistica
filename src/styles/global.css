@@ -1,0 +1,28 @@
+/* src/styles/global.css */
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-ticket, .printable-ticket * {
+    visibility: visible;
+  }
+  .printable-ticket {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background-color: white !important;
+    color: black !important;
+  }
+  .app-container {
+    display: none !important;
+  }
+}
+
+/* Ocultar scrollbar pero permitir scroll */
+.overflow-y-auto::-webkit-scrollbar { width: 5px; }
+.overflow-y-auto::-webkit-scrollbar-track { background: transparent; }
+.overflow-y-auto::-webkit-scrollbar-thumb { background-color: #4a5568; /* gray-600 */ border-radius: 20px; border: 3px solid transparent; }
+.overflow-y-auto { scrollbar-width: thin; scrollbar-color: #4a5568 transparent; } /* Para Firefox */
+.touch-none { touch-action: none; }
