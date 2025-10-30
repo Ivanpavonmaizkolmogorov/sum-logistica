@@ -14,11 +14,12 @@ import DriverModal from '../components/modals/DriverModal';
 import DeleteConfirmationModal from '../components/modals/DeleteConfirmationModal'; // Importar DeleteConfirmationModal
 import { ClientManagementView } from './ClientManagementView';
 import { AdminSettings } from './AdminSettings';
+import { RoutePlanningView } from './RoutePlanningView'; // Importar la nueva vista
 
 export const AdminDashboard = ({
   shipments, pickups, clients, drivers,
   onAddDriver, onUpdateDriver, onEditShipment, onDeleteShipment, onImpersonateDriver,
-  appSettings, onUpdateSettings,
+  appSettings, onUpdateSettings, onOptimizeRoutes,
   onAddClient, onUpdateClient, onDeleteClient,
   onOpenCreateClient, onOpenEditClient, onOpenCreateDriver, onOpenEditDriver
 }) => {
@@ -29,9 +30,9 @@ export const AdminDashboard = ({
   const [shipmentToDelete, setShipmentToDelete] = useState(null);
   const [clientToDelete, setClientToDelete] = useState(null); // Para confirmación de borrado
   const [expandedSummaryDriverId, setExpandedSummaryDriverId] = useState(null);
-  const [sortOrder, setSortOrder] = useState('default');
+  const [sortOrder, setSortOrder] = useState('id');
   const [statusFilter, setStatusFilter] = useState('activos');
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'activity', 'clients', 'settings'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'activity', 'planning', 'clients', 'settings'
   const [searchTerm, setSearchTerm] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filterDriverId, setFilterDriverId] = useState('');
@@ -94,8 +95,8 @@ export const AdminDashboard = ({
 
     switch (sortOrder) {
       case 'poblacion': return filteredShipments.sort((a, b) => getCity(a.destination).localeCompare(getCity(b.destination)));
-      case 'transportista': return filteredShipments.sort((a, b) => (drivers.find(d => d.id === a.driverId)?.name || '').localeCompare(drivers.find(d => d.id === b.driverId)?.name || ''));
-      case 'default': default: return filteredShipments.sort((a, b) => a.id - b.id);
+      case 'transportista': return filteredShipments.sort((a, b) => (drivers.find(d => d.id === a.driverId)?.name || 'Z').localeCompare(drivers.find(d => d.id === b.driverId)?.name || 'Z'));
+      case 'id': default: return filteredShipments.sort((a, b) => b.id - a.id); // Ordenar por ID descendente (más nuevos primero)
     }
   }, [shipments, statusFilter, sortOrder, drivers, searchTerm, filterDriverId, filterHasReembolso, filterHasIncidencia]);
 
@@ -234,6 +235,7 @@ export const AdminDashboard = ({
         <div className="flex items-center space-x-2 bg-gray-700 p-1 rounded-lg">
           <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-md font-semibold ${view === 'dashboard' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>General</button>
           <button onClick={() => setView('activity')} className={`px-4 py-2 rounded-md font-semibold ${view === 'activity' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Actividad y Resúmenes</button>
+          <button onClick={() => setView('planning')} className={`px-4 py-2 rounded-md font-semibold ${view === 'planning' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Planificar Rutas</button>
           <button onClick={() => setView('clients')} className={`px-4 py-2 rounded-md font-semibold ${view === 'clients' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Clientes</button>
           <button onClick={() => setView('settings')} className={`px-4 py-2 rounded-md font-semibold ${view === 'settings' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Ajustes</button>
         </div>
@@ -267,7 +269,7 @@ export const AdminDashboard = ({
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                   <div className="flex items-center gap-2 flex-wrap">
                     <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="activos">Activos</option><option value="todos">Todos</option><option value="pendientes">Pend. de Asignar</option><option value="en_reparto">En Reparto</option><option value="entregados">Entregados</option><option value="pend_cobro">Pend. Cobro</option><option value="incidencia">Incidencias</option></select>
-                    <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="default">Ruta</option><option value="poblacion">Población</option><option value="transportista">Transportista</option></select>
+                    <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="id">Más Recientes</option><option value="poblacion">Población</option><option value="transportista">Transportista</option></select>
                   </div>
                   <button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg text-sm">
                     <Filter size={16} /> Filtros Avanzados {showAdvancedFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -481,6 +483,14 @@ export const AdminDashboard = ({
             </div>
           </div>
         </div>
+      )}
+
+      {view === 'planning' && (
+        <RoutePlanningView
+          shipments={shipments}
+          drivers={drivers}
+          onOptimize={onOptimizeRoutes} // <-- Conectamos la función del backend
+        />
       )}
 
       {view === 'clients' && (

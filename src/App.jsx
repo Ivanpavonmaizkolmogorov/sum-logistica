@@ -192,6 +192,19 @@ export default function App() {
     setRecipients(await api.getRecipients());
   };
 
+  // Optimización de Rutas
+  const handleOptimizeRoutes = async (shipmentIds, driverIds) => {
+    console.log("App.jsx: Iniciando optimización para envíos:", shipmentIds, "y transportistas:", driverIds);
+    try {
+      // En una implementación real, aquí llamarías a tu endpoint del backend
+      // const result = await api.optimizeRoutes({ shipmentIds, driverIds });
+      // await refreshData(); // Recargar datos después de la optimización
+      // return result;
+    } catch (error) {
+      console.error("Error en la llamada de optimización de rutas:", error);
+      throw error; // Re-lanzar el error para que el componente de la UI lo maneje
+    }
+  };
   // --- MANEJADORES DE UI (MODALES, LOGIN, ETC.) ---
 
   const handleLogin = (username, password, role) => {
@@ -319,6 +332,7 @@ export default function App() {
                 onOpenEditClient={openEditClientModal}
                 onOpenCreateDriver={openCreateDriverModal}
                 onOpenEditDriver={openEditDriverModal}
+                onOptimizeRoutes={handleOptimizeRoutes} // <-- Pasar la nueva función
               />
             ) : activeUser.role === 'client' ? (
               <ClientView client={activeUser} shipments={shipments} onCreateShipment={openCreateShipmentModal} onChangePassword={handleClientPasswordChange} />

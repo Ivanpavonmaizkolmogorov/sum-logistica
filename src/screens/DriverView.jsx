@@ -178,21 +178,19 @@ export const DriverView = ({
     const needsReimbursement = selectedShipment.collectedAmount > 0;
   
     // Lógica para determinar si se debe cobrar el porte al destinatario
-    let shouldCollectShippingCost = false;
-    if (selectedShipment.shippingPayer === 'destinatario') { // <-- CORRECCIÓN: Se elimina la comprobación de shippingCost > 0
-      const recipientAsClient = clients.find(c => `${c.name} (Cliente)` === selectedShipment.recipient);
-      // Se cobra si es un cliente de cobro diario O si es un destinatario libre marcado para ello.
-      if ((recipientAsClient && recipientAsClient.billingType === 'daily') ||
-          (!recipientAsClient && selectedShipment.isRecipientFreeTextDailyPayer)) {
-        shouldCollectShippingCost = true;
+    let shouldCollectShippingCost = selectedShipment.shippingCost > 0 && selectedShipment.shippingPayer === 'destinatario';
+
+    // EXCEPCIÓN: No cobrar portes si el destinatario es un cliente con facturación mensual
+    if (shouldCollectShippingCost) {
+      const recipientAsClient = clients.find(c => c.id === selectedShipment.recipientId); // Asumiendo que tenemos recipientId
+      if (recipientAsClient && recipientAsClient.billingType === 'monthly') {
+        shouldCollectShippingCost = false;
+        console.log("DECISIÓN: No se cobran portes, el destinatario es cliente mensual.");
       }
     }
 
     console.log(`¿Necesita Reembolso?: ${needsReimbursement}`);
     console.log(`¿Debe cobrar portes al destinatario?: ${shouldCollectShippingCost}`);
-    console.log(`¿Es pago diario por remitente?: ${isDailySenderPayment}`);
-    console.log(`¿Es destinatario libre de cobro diario?: ${!!selectedShipment.isRecipientFreeTextDailyPayer}`);
-    console.log(`¿Porte de remitente ya cobrado?: ${!!selectedShipment.senderPaymentCollectedAt}`);
 
     if (appSettings.showPaymentAlertOnDelivery && (needsReimbursement || shouldCollectShippingCost)) {
       console.log("DECISIÓN: Mostrar alerta de cobro en destino.");
