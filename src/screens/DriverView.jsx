@@ -109,7 +109,8 @@ export const DriverView = ({
     pendiente: shipments.filter(s => (!s.driverId && (s.status === 'Pendiente' || s.status === 'Cobro Pendiente'))
                                    || (s.driverId === driver.id && s.status === 'Pendiente')).length,
     completados: shipments.filter(s => s.driverId === driver.id && (s.status === 'Entregado')).length,
-    cobroPendiente: shipments.filter(s => s.driverId === driver.id && s.status === 'Cobro Pendiente').length,
+    // CORRECCIÓN: El contador debe coincidir con el filtro de la pestaña, mostrando todos los cobros pendientes.
+    cobroPendiente: shipments.filter(s => s.status === 'Cobro Pendiente').length,
     recogidas_driver: pickups.filter(p => p.driverId === driver.id && p.createdAt && p.createdAt.startsWith(selectedDate)).length,
   };
 
