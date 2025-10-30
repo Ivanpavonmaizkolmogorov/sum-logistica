@@ -379,6 +379,13 @@ export const DriverView = ({
                 const address = destinationParts[0]?.trim();
                 const city = destinationParts.length > 1 ? destinationParts.slice(1).join(',').trim() : '';
                 const isDraggable = (activeTab === 'reparto' || activeTab === 'pendiente') && appSettings.allowManualSort;
+
+                // Determinar qué nombre mostrar en la línea principal
+                let displayName = shipment.recipient; // Por defecto, el destinatario
+                if (activeTab === 'cobroPendiente') {
+                  displayName = shipment.shippingPayer === 'remitente' ? shipment.clientName : shipment.recipient;
+                }
+
                 return (
                   <div
                     key={shipment.id}
@@ -402,7 +409,10 @@ export const DriverView = ({
                   >
                     {isDraggable && <GripVertical className="text-gray-500 flex-shrink-0" />}
                     <button onClick={() => handleSelectShipment(shipment)} className="flex-grow text-left flex justify-between items-center min-w-0">
-                      <div className="flex-1 min-w-0"><p className="font-bold truncate">{shipment.recipient}</p><p className="text-sm text-gray-400 truncate">{address}</p><p className="text-sm font-semibold">{city}</p></div>
+                      <div className="flex-1 min-w-0"><p className="font-bold truncate">{displayName}</p>
+                        <p className="text-sm text-gray-400 truncate">{address}</p>
+                        <p className="text-sm font-semibold">{city}</p>
+                      </div>
                       <div className="flex-shrink-0 ml-4"><StatusBadge status={shipment.status} /></div>
                     </button>
                     {activeTab === 'pendiente' && (
