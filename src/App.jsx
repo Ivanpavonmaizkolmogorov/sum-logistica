@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Truck, LogOut } from 'lucide-react';
 
 // Importar la capa de API
-import * as api from './api'; // Importa todas las funciones de la API
+import * as api from './api/mockService'; // CORRECCIÓN: Importar desde el archivo correcto
 import './styles/global.css';
 
 // Importar las pantallas principales
 import LoginScreen from './screens/LoginScreen';
 import { AdminDashboard } from './screens/AdminDashboard';
-import { DriverView } from './screens/DriverView';
+import { DriverView } from './screens/DriverView'; // Mantener esta ruta si DriverView está en screens
+import { ClientView } from './ClientView'; // CORRECCIÓN: Importar ClientView desde la raíz de src
 import { AdminSettings } from './screens/AdminSettings'; // Importar AdminSettings
 import { ClientManagementView } from './screens/ClientManagementView'; // Importar ClientManagementView
 
@@ -100,11 +101,29 @@ export default function App() {
   };
   const handleUpdateClient = async (clientId, updates) => {
     await api.updateClient(clientId, updates);
+    // Si la contraseña se actualiza, también actualizamos la lista para el login
+    if (updates.password) {
+      const clientIndex = api.initialClientsForLogin.findIndex(c => c.id === clientId);
+      if (clientIndex !== -1) {
+        api.initialClientsForLogin[clientIndex].password = updates.password;
+      }
+    }
     setClients(await api.getClients());
   };
   const handleDeleteClient = async (clientId) => {
     await api.deleteClient(clientId);
     setClients(await api.getClients());
+  };
+
+  const handleClientPasswordChange = async (clientId, currentPassword, newPassword) => {
+    // En una app real, esto lo haría el backend. Aquí lo simulamos.
+    const client = (await api.getClients()).find(c => c.id === clientId);
+    if (client && client.password === currentPassword) {
+      await handleUpdateClient(clientId, { password: newPassword });
+      return { success: true, message: 'Contraseña actualizada correctamente.' };
+    } else {
+      return { success: false, message: 'La contraseña actual es incorrecta.' };
+    }
   };
 
   // Transportistas
@@ -125,6 +144,16 @@ export default function App() {
 
   // Envíos
   const handleSaveShipment = async (shipmentData) => {
+    // Si es un cliente creando, el estado ya viene definido desde el modal
+    // (En ruta si tiene driver, Pendiente si no).
+    // Si es un admin/transportista, se aplican las reglas anteriores.
+    if (activeUser.role !== 'client' && !shipmentData.id) {
+       shipmentData.status = shipmentData.driverId ? 'En ruta' : 'Pendiente';
+    }
+    if (activeUser.role === 'client') {
+      shipmentData.shippingCost = 0;
+    }
+
     if (shipmentData.id) {
       await api.updateShipment(shipmentData.id, shipmentData);
     } else {
@@ -165,17 +194,32 @@ export default function App() {
 
   // --- MANEJADORES DE UI (MODALES, LOGIN, ETC.) ---
 
-  const handleLogin = (username, password) => {
-    if (username === 'admin' && password === 'admin') {
-      setCurrentUser({ id: 999, role: 'admin', name: 'Administrador' });
-      return true;
+  const handleLogin = (username, password, role) => {
+    switch (role) {
+      case 'admin':
+        if (username === 'admin' && password === 'admin') {
+          setCurrentUser({ id: 999, role: 'admin', name: 'Administrador' });
+          return true;
+        }
+        break;
+      case 'client':
+        const client = api.initialClientsForLogin.find(c => c.email === username && c.password === password);
+        if (client && client.hasAccess) { // <-- VERIFICACIÓN DE ACCESO
+          setCurrentUser({ ...client, role: 'client' });
+          return true;
+        }
+        break;
+      case 'driver':
+        const driver = api.initialDriversForLogin.find(d => d.name === username && d.password === password);
+        if (driver) {
+          setCurrentUser({ ...driver, role: 'driver' });
+          return true;
+        }
+        break;
+      default:
+        return false;
     }
-    const driver = api.initialDriversForLogin.find(d => d.name === username && d.password === password);
-    if (driver) {
-      setCurrentUser({ ...driver, role: 'driver' });
-      return true;
-    }
-    return false;
+    return false; // Si no se encuentra en el switch case correcto
   };
 
   const handleLogout = () => {
@@ -253,42 +297,39 @@ export default function App() {
         </header>
 
         <main>
-          {activeUser.role === 'admin' ? (
-            <AdminDashboard
-              shipments={shipments}
-              pickups={pickups}
-              clients={clients}
-              drivers={drivers}
-              onAddDriver={handleAddDriver}
-              onUpdateDriver={handleUpdateDriver}
-              onEditDriver={openEditDriverModal} // Pasar el manejador para editar driver
-              onEditShipment={openEditShipmentModal}
-              onDeleteShipment={handleDeleteShipment}
-              onImpersonateDriver={handleImpersonateDriver}
-              appSettings={appSettings}
-              onUpdateSettings={setAppSettings}
-              onAddClient={handleAddClient}
-              onUpdateClient={handleUpdateClient}
-              onDeleteClient={handleDeleteClient}
-              onOpenCreateClient={openCreateClientModal}
-              onOpenEditClient={openEditClientModal}
-              onOpenCreateDriver={openCreateDriverModal}
-              onOpenEditDriver={openEditDriverModal}
-            />
-          ) : (
-            <DriverView
-              driver={activeUser}
-              shipments={shipments}
-              pickups={pickups}
-              clients={clients}
-              drivers={drivers}
-              onUpdateShipment={handleUpdateShipmentStatus}
-              onCreateShipment={openCreateShipmentModal}
-              onEditShipment={openEditShipmentModal}
-              onCreatePickup={openCreatePickupModal}
-              appSettings={appSettings}
-            />
-          )}
+          {
+            activeUser.role === 'admin' ? (
+              <AdminDashboard
+                shipments={shipments}
+                pickups={pickups}
+                clients={clients}
+                drivers={drivers}
+                onAddDriver={handleAddDriver}
+                onUpdateDriver={handleUpdateDriver}
+                onEditDriver={openEditDriverModal}
+                onEditShipment={openEditShipmentModal}
+                onDeleteShipment={handleDeleteShipment}
+                onImpersonateDriver={handleImpersonateDriver}
+                appSettings={appSettings}
+                onUpdateSettings={setAppSettings}
+                onAddClient={handleAddClient}
+                onUpdateClient={handleUpdateClient}
+                onDeleteClient={handleDeleteClient}
+                onOpenCreateClient={openCreateClientModal}
+                onOpenEditClient={openEditClientModal}
+                onOpenCreateDriver={openCreateDriverModal}
+                onOpenEditDriver={openEditDriverModal}
+              />
+            ) : activeUser.role === 'client' ? (
+              <ClientView client={activeUser} shipments={shipments} onCreateShipment={openCreateShipmentModal} onChangePassword={handleClientPasswordChange} />
+            ) : activeUser.role === 'driver' ? (
+              <DriverView
+                driver={activeUser} shipments={shipments} pickups={pickups} clients={clients} drivers={drivers}
+                onUpdateShipment={handleUpdateShipmentStatus} onCreateShipment={openCreateShipmentModal}
+                onEditShipment={openEditShipmentModal} onCreatePickup={openCreatePickupModal} appSettings={appSettings}
+              />
+            ) : null
+          }
         </main>
         <footer className="text-center mt-12 text-gray-500 text-sm">
           <p>© {new Date().getFullYear()} SUM Logística</p>
@@ -320,6 +361,7 @@ export default function App() {
         clientToEdit={clientToEdit}
         onSave={handleSaveClient}
         onCancel={closeClientModal}
+        drivers={drivers} // <-- Pasar la lista de transportistas
       />}
 
       {isDriverModalOpen && <DriverModal

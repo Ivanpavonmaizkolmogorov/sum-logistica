@@ -2,9 +2,9 @@
 
 // --- DATOS MOCK ---
 let clients = [
-  { id: 1, name: 'ElectroHogar S.L.', address: 'Calle Falsa 123, Madrid', phone: '34611223344', email: 'facturacion@electrohogar.es', billingType: 'monthly' },
-  { id: 2, name: 'ModaExpress', address: 'Avenida de la Industria 45, Barcelona', phone: '34622334455', email: 'pedidos@modaexpress.com', billingType: 'daily' },
-  { id: 3, name: 'Libros y Más', address: 'Plaza Nueva 1, Sevilla', phone: '34633445566', email: 'info@librosymas.es', billingType: 'monthly' },
+  { id: 1, name: 'ElectroHogar S.L.', password: '123', address: 'Calle Falsa 123, Madrid', phone: '34611223344', email: 'facturacion@electrohogar.es', billingType: 'monthly', hasAccess: true, defaultDriverId: 101 },
+  { id: 2, name: 'ModaExpress', password: '456', address: 'Avenida de la Industria 45, Barcelona', phone: '34622334455', email: 'pedidos@modaexpress.com', billingType: 'daily', hasAccess: false, defaultDriverId: null },
+  { id: 3, name: 'Libros y Más', password: '789', address: 'Plaza Nueva 1, Sevilla', phone: '34633445566', email: 'info@librosymas.es', billingType: 'monthly', hasAccess: false, defaultDriverId: 102 },
 ];
 
 let drivers = [
@@ -103,3 +103,4 @@ export const addRecipient = async (newRecipientData) => {
 
 // Exportar datos iniciales para el login (solo para el mock)
 export const initialDriversForLogin = drivers;
+export const initialClientsForLogin = clients;

@@ -49,8 +49,11 @@ export const DriverView = ({
       setList([]);
     } else {
       let filteredShipments = shipments.filter(shipment => {
-        if (activeTab === 'reparto') return shipment.driverId === driver.id && shipment.status === 'En ruta';
-        if (activeTab === 'pendiente') return shipment.status === 'Pendiente';
+        if (activeTab === 'reparto') return shipment.driverId === driver.id && (shipment.status === 'En ruta' || (shipment.status === 'Cobro Pendiente' && !shipment.deliveredAt)); 
+        // Un envío está 'pendiente' para este transportista si:
+        // 1. No tiene transportista y está en estado 'Pendiente' (pool general)
+        // 2. O ESTÁ asignado a este transportista pero sigue en estado 'Pendiente'
+        if (activeTab === 'pendiente') return (shipment.status === 'Pendiente' && !shipment.driverId) || (shipment.status === 'Pendiente' && shipment.driverId === driver.id);
         if (activeTab === 'completados') return shipment.driverId === driver.id && (shipment.status === 'Entregado');
         if (activeTab === 'cobroPendiente') return shipment.driverId === driver.id && shipment.status === 'Cobro Pendiente';
         return false;
@@ -97,8 +100,8 @@ export const DriverView = ({
   }, [shipments, driver.id, selectedDate]);
 
   const counts = {
-    reparto: shipments.filter(s => s.driverId === driver.id && s.status === 'En ruta').length,
-    pendiente: shipments.filter(s => s.status === 'Pendiente').length,
+    reparto: shipments.filter(s => s.driverId === driver.id && (s.status === 'En ruta' || (s.status === 'Cobro Pendiente' && !s.deliveredAt))).length,
+    pendiente: shipments.filter(s => (s.status === 'Pendiente' && !s.driverId) || (s.status === 'Pendiente' && s.driverId === driver.id)).length,
     completados: shipments.filter(s => s.driverId === driver.id && (s.status === 'Entregado')).length,
     cobroPendiente: shipments.filter(s => s.driverId === driver.id && s.status === 'Cobro Pendiente').length,
     recogidas_driver: pickups.filter(p => p.driverId === driver.id && p.createdAt && p.createdAt.startsWith(selectedDate)).length,
@@ -191,7 +194,7 @@ export const DriverView = ({
     console.log(`¿Es destinatario libre de cobro diario?: ${!!selectedShipment.isRecipientFreeTextDailyPayer}`);
     console.log(`¿Porte de remitente ya cobrado?: ${!!selectedShipment.senderPaymentCollectedAt}`);
 
-    if (appSettings.showPaymentAlertOnDelivery && (needsReimbursement || shouldCollectShippingCost)) { // <-- MODIFICACIÓN CLAVE
+    if (appSettings.showPaymentAlertOnDelivery && (needsReimbursement || shouldCollectShippingCost)) {
       console.log("DECISIÓN: Mostrar alerta de cobro en destino.");
       setShowPaymentAlert(true);
     } else if (isDailySenderPayment && !selectedShipment.senderPaymentCollectedAt) {
@@ -271,7 +274,7 @@ export const DriverView = ({
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2 bg-gray-700 p-1 rounded-lg w-full sm:w-auto">
           <button onClick={() => setActiveTab('reparto')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'reparto' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Reparto ({counts.reparto})</button>
-          {appSettings.showPendingAssignTab && <button onClick={() => setActiveTab('pendiente')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'pendiente' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Pendiente ({counts.pendiente})</button>}
+          {appSettings.showPendingAssignTab && <button onClick={() => setActiveTab('pendiente')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'pendiente' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Pend. de Asignar ({counts.pendiente})</button>}
           <button onClick={() => setActiveTab('recogidas_driver')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'recogidas_driver' ? 'bg-green-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Recogidas ({counts.recogidas_driver})</button>
           <button onClick={() => setActiveTab('completados')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'completados' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Entregados ({counts.completados})</button>
           <button onClick={() => setActiveTab('cobroPendiente')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'cobroPendiente' ? 'bg-purple-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Pend. Cobro ({counts.cobroPendiente})</button>
@@ -377,7 +380,10 @@ export const DriverView = ({
                     key={shipment.id}
                     className={`bg-gray-900 p-4 rounded-lg flex items-center gap-3 hover:bg-gray-700 group transition-all ${isDraggable ? 'cursor-move' : ''}`}
                     draggable={isDraggable}
-                    onDragStart={isDraggable ? (e) => dragItem.current = index : undefined}
+                    onDragStart={isDraggable ? (e) => {
+                      dragItem.current = index;
+                      e.currentTarget.classList.add('opacity-50');
+                    } : undefined}
                     onDragEnter={isDraggable ? (e) => dragOverItem.current = index : undefined}
                     onDragEnd={isDraggable ? (e) => {
                       const newList = [...list];
@@ -386,6 +392,7 @@ export const DriverView = ({
                       setList(newList);
                       dragItem.current = null;
                       dragOverItem.current = null;
+                      e.currentTarget.classList.remove('opacity-50');
                     } : undefined}
                     onDragOver={isDraggable ? (e) => e.preventDefault() : undefined}
                   >

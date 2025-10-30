@@ -43,7 +43,7 @@ export const AdminDashboard = ({
     total: shipments.length,
     inRoute: shipments.filter(s => s.status === 'En ruta').length,
     delivered: shipments.filter(s => s.status === 'Entregado').length,
-    pending: shipments.filter(s => s.status === 'Pendiente').length,
+    pending: shipments.filter(s => s.status === 'Pendiente' || (s.status === 'Cobro Pendiente' && !s.driverId && !s.deliveredAt)).length,
   };
 
   const sortedShipments = useMemo(() => {
@@ -51,12 +51,16 @@ export const AdminDashboard = ({
 
     // 1. Filtro por estado principal
     if (statusFilter !== 'todos') {
-      const activeStatuses = ['Pendiente', 'En ruta'];
-      filteredShipments = filteredShipments.filter(s => {
-        if (statusFilter === 'activos') return activeStatuses.includes(s.status);
-        if (statusFilter === 'pendientes') return s.status === 'Pendiente';
+      const activeStatuses = ['Pendiente', 'En ruta', 'Cobro Pendiente'];
+      filteredShipments = shipments.filter(s => {
+        if (statusFilter === 'activos') {
+          // Un envío es activo si su estado está en la lista Y, si es 'Cobro Pendiente', no debe haber sido entregado.
+          return activeStatuses.includes(s.status) && !(s.status === 'Cobro Pendiente' && s.deliveredAt);
+        }
+        if (statusFilter === 'pendientes') return s.status === 'Pendiente' || (s.status === 'Cobro Pendiente' && !s.driverId);
         if (statusFilter === 'en_reparto') return s.status === 'En ruta';
         if (statusFilter === 'entregados') return s.status === 'Entregado';
+        if (statusFilter === 'pend_cobro') return s.status === 'Cobro Pendiente';
         if (statusFilter === 'incidencia') return s.status === 'Incidencia';
         return true;
       });
@@ -154,6 +158,15 @@ export const AdminDashboard = ({
     return Object.values(summaryByClient);
   }, [pickups, clients, selectedDate]);
 
+  const globalDailySummary = useMemo(() => {
+    return dailySummaryData.reduce((acc, driverSummary) => {
+      acc.totalShippingCost += driverSummary.totalShippingCost;
+      acc.totalCollectedAmount += driverSummary.totalCollectedAmount;
+      acc.totalToSettle += driverSummary.totalShippingCost + driverSummary.totalCollectedAmount;
+      return acc;
+    }, { totalShippingCost: 0, totalCollectedAmount: 0, totalToSettle: 0 });
+  }, [dailySummaryData]);
+
   const hasActiveShipments = Object.keys(activityData).length > 0;
 
   const toggleSummaryDetails = (driverId) => setExpandedSummaryDriverId(prevId => (prevId === driverId ? null : driverId));
@@ -232,7 +245,7 @@ export const AdminDashboard = ({
             <Card><div className="flex items-center space-x-4"><Package size={28} className="text-blue-400" /><div><p>Envíos Totales</p><p className="text-2xl font-bold">{stats.total}</p></div></div></Card>
             <Card><div className="flex items-center space-x-4"><Truck size={28} className="text-yellow-400" /><div><p>En Ruta</p><p className="text-2xl font-bold">{stats.inRoute}</p></div></div></Card>
             <Card><div className="flex items-center space-x-4"><CheckCircle size={28} className="text-green-400" /><div><p>Entregados</p><p className="text-2xl font-bold">{stats.delivered}</p></div></div></Card>
-            <Card><div className="flex items-center space-x-4"><Clock size={28} className="text-red-400" /><div><p>Pendientes</p><p className="text-2xl font-bold">{stats.pending}</p></div></div></Card>
+            <Card><div className="flex items-center space-x-4"><Clock size={28} className="text-red-400" /><div><p>Pend. de Asignar</p><p className="text-2xl font-bold">{stats.pending}</p></div></div></Card>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -252,8 +265,8 @@ export const AdminDashboard = ({
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-                  <div className="flex items-center gap-2">
-                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="activos">Activos</option><option value="todos">Todos</option><option value="pendientes">Pendientes</option><option value="en_reparto">En Reparto</option><option value="entregados">Entregados</option><option value="incidencia">Incidencias</option></select>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="activos">Activos</option><option value="todos">Todos</option><option value="pendientes">Pend. de Asignar</option><option value="en_reparto">En Reparto</option><option value="entregados">Entregados</option><option value="pend_cobro">Pend. Cobro</option><option value="incidencia">Incidencias</option></select>
                     <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="bg-gray-700 text-sm p-2 rounded-lg"><option value="default">Ruta</option><option value="poblacion">Población</option><option value="transportista">Transportista</option></select>
                   </div>
                   <button onClick={() => setShowAdvancedFilters(!showAdvancedFilters)} className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg text-sm">
@@ -328,6 +341,24 @@ export const AdminDashboard = ({
               />
             </div>
           </div>
+
+          <Card className="mb-10 bg-gray-900 border-2 border-green-500">
+            <h4 className="text-xl font-bold mb-4 text-white">Liquidación Total del Día</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-gray-800 p-4 rounded-lg text-center">
+                <p className="text-sm text-gray-400">Total Portes Cobrados</p>
+                <p className="text-2xl font-bold text-blue-400">{globalDailySummary.totalShippingCost.toFixed(2)} €</p>
+              </div>
+              <div className="bg-gray-800 p-4 rounded-lg text-center">
+                <p className="text-sm text-gray-400">Total Reembolsos Cobrados</p>
+                <p className="text-2xl font-bold text-yellow-400">{globalDailySummary.totalCollectedAmount.toFixed(2)} €</p>
+              </div>
+              <div className="bg-green-800/50 p-4 rounded-lg text-center border border-green-600">
+                <p className="text-sm text-green-200">TOTAL A LIQUIDAR</p>
+                <p className="text-3xl font-extrabold text-white">{globalDailySummary.totalToSettle.toFixed(2)} €</p>
+              </div>
+            </div>
+          </Card>
 
           <div className="mb-10">
             <h4 className="text-xl font-bold mb-4 text-white">Resumen de Entregas ({new Date(selectedDate + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })})</h4>

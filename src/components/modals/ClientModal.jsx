@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import Card from '../ui/Card';
 
-const ClientModal = ({ onSave, onCancel, clientToEdit }) => {
+const ClientModal = ({ onSave, onCancel, clientToEdit, drivers }) => {
   const isEditing = clientToEdit && clientToEdit.id;
 
   const [formData, setFormData] = useState({
@@ -11,19 +11,26 @@ const ClientModal = ({ onSave, onCancel, clientToEdit }) => {
     phone: '',
     email: '',
     billingType: 'monthly',
+    password: '',
+    hasAccess: false,
+    defaultDriverId: '',
   });
 
   useEffect(() => {
     if (isEditing) {
-      setFormData(clientToEdit);
+      setFormData({
+        ...clientToEdit,
+        password: '', // No mostrar la contraseña actual
+        defaultDriverId: clientToEdit.defaultDriverId || '',
+      });
     } else {
-      setFormData({ name: '', address: '', phone: '', email: '', billingType: 'monthly' });
+      setFormData({ name: '', address: '', phone: '', email: '', billingType: 'monthly', password: '', hasAccess: false, defaultDriverId: '' });
     }
   }, [clientToEdit, isEditing]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleSubmit = (e) => {
@@ -42,6 +49,25 @@ const ClientModal = ({ onSave, onCancel, clientToEdit }) => {
           <div className="flex space-x-4">
             <div className="flex-1"><label className="block text-sm font-medium text-gray-400 mb-1">Teléfono</label><input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" /></div>
             <div className="flex-1"><label className="block text-sm font-medium text-gray-400 mb-1">Email</label><input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" /></div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-400 mb-1">Contraseña</label>
+            <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder={isEditing ? "Dejar en blanco para no cambiar" : "Requerida para nuevos clientes"} required={!isEditing} className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600" />
+          </div>
+          <div className="grid grid-cols-2 gap-4 items-center">
+            <div>
+              <label className="block text-sm font-medium text-gray-400 mb-1">Transportista por Defecto</label>
+              <select name="defaultDriverId" value={formData.defaultDriverId} onChange={handleChange} className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600">
+                <option value="">Ninguno</option>
+                {drivers.map(driver => (
+                  <option key={driver.id} value={driver.id}>{driver.name}</option>
+                ))}
+              </select>
+            </div>
+            <label className="flex items-center space-x-2 text-white mt-6">
+              <input type="checkbox" name="hasAccess" checked={formData.hasAccess} onChange={handleChange} className="h-5 w-5 rounded bg-gray-600 border-gray-500" />
+              <span>Permitir acceso al portal</span>
+            </label>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-400 mb-1">Tipo de Facturación</label>

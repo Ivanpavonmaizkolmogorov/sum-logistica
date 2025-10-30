@@ -6,6 +6,7 @@ import SenderPaymentConfirmModal from './SenderPaymentConfirmModal';
 import SenderForgotAlertModal from './SenderForgotAlertModal';
 
 const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, recipients, drivers, onAddRecipient, onAddClient, currentUser }) => {
+  const isClientUser = currentUser.role === 'client';
   const isEditing = shipmentToEdit && shipmentToEdit.id;
   const initialFormState = {
     clientId: null,
@@ -50,7 +51,17 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
     } else {
       setFormData(initialFormState);
     }
-  }, [shipmentToEdit, isOpen, clients]);
+  }, [shipmentToEdit, isOpen, clients, isClientUser, currentUser]);
+  
+  // Efecto para pre-seleccionar el transportista por defecto del cliente
+  useEffect(() => {
+    if (!isEditing && formData.clientId && !isClientUser) {
+      const client = clients.find(c => c.id === formData.clientId);
+      if (client && client.defaultDriverId) {
+        setFormData(prev => ({ ...prev, driverId: client.defaultDriverId }));
+      }
+    }
+  }, [formData.clientId, isEditing, isClientUser, clients]);
 
   useEffect(() => {
     if (formData.shippingPayer === 'remitente') {
@@ -83,20 +94,29 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
     }
   }, [formData.shippingPayer, formData.recipient, clients, recipients]);
 
-  const contactOptions = [
-    ...clients.map(c => ({
-      value: `client-${c.id}`,
-      label: `${c.name} (Cliente)`,
-      address: c.address,
-      clientId: c.id
-    })),
-    ...recipients.map(r => ({
-      value: `recipient-${r.id}`,
-      label: r.name,
-      address: r.address,
-      clientId: r.clientId
-    }))
-  ];
+  const clientContactOptions = isClientUser ? [] : clients.map(c => ({
+    value: `client-${c.id}`,
+    label: `${c.name} (Cliente)`,
+    address: c.address,
+    clientId: c.id
+  }));
+
+  const recipientContactOptions = React.useMemo(() => {
+    // Si es un cliente, solo mostrar sus destinatarios. Si es admin, mostrar todos.
+    const relevantRecipients = isClientUser
+      ? recipients.filter(r => r.clientId === currentUser.id)
+      : recipients;
+
+    return [
+      ...clientContactOptions, // Estará vacío para clientes
+      ...relevantRecipients.map(r => ({
+        value: `recipient-${r.id}`,
+        label: r.name,
+        address: r.address,
+        clientId: r.clientId
+      }))
+    ];
+  }, [isClientUser, currentUser.id, recipients, clients]);
 
   const isNewClient = formData.clientName && !formData.clientId && !clients.some(c => `${c.name} (Cliente)` === formData.clientName);
   const isNewRecipient = formData.recipient && !recipients.some(r => r.name === formData.recipient) && !clients.some(c => `${c.name} (Cliente)` === formData.recipient);
@@ -171,7 +191,9 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
     console.log("--- ShipmentModal: runSave ---");
     console.log("Estado del formulario ANTES de procesar:", formData);
 
-    let finalClientId = formData.clientId;
+    // Si el usuario es un cliente, nos aseguramos de que el ID del remitente sea siempre el suyo.
+    // Si es un admin, usamos el que esté en el formulario.
+    let finalClientId = isClientUser ? currentUser.id : formData.clientId;
 
     if (saveNewClient && isNewClient) {
       const newClient = {
@@ -196,6 +218,9 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
 
     const fullDestination = [formData.destination, formData.poblacion].filter(Boolean).join(', ');
 
+    // Lógica para determinar el estado inicial
+    const isDailySenderUnpaid = showSenderPayment && !formData.senderPaymentCollected;
+
     const shipmentData = {
       ...formData,
       clientId: finalClientId,
@@ -207,8 +232,20 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
       priority: formData.priority || 'Normal',
       senderPaymentCollectedAt: formData.senderPaymentCollected ? new Date().toISOString() : null,
       paymentCollectedBy: formData.senderPaymentCollected ? currentUser.id : null,
-      status: isEditing ? shipmentToEdit.status : 'Pendiente', // Asegurar que el estado se establece
+      status: isEditing ? shipmentToEdit.status : (isDailySenderUnpaid ? 'Cobro Pendiente' : 'Pendiente'), // El cliente siempre creará como 'Pendiente'
     };
+
+    // Si es un cliente con transportista por defecto, asignarlo y ponerlo 'En ruta'
+    if (isClientUser && currentUser.defaultDriverId) {
+      shipmentData.driverId = currentUser.defaultDriverId;
+      shipmentData.status = 'Pendiente'; // Cambiado de 'En ruta' a 'Pendiente'
+    }
+
+    // Para clientes, el coste del porte es 0 por defecto y el estado es siempre Pendiente
+    if (isClientUser) {
+      shipmentData.shippingCost = 0;
+    }
+
     delete shipmentData.poblacion;
     delete shipmentData.senderPaymentCollected;
 
@@ -248,19 +285,28 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
           <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
           <h3 className="text-2xl font-bold mb-4 text-white">{isEditing ? 'Editar' : 'Crear'} Albarán</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <select
-              name="driverId"
-              value={formData.driverId || ''}
-              onChange={(e) => setFormData(prev => ({ ...prev, driverId: e.target.value ? parseInt(e.target.value, 10) : null }))}
-              className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600"
-            >
-              <option value="">-- Sin Asignar --</option>
-              {drivers.map(d => (<option key={d.id} value={d.id}>{d.name}</option>))}
-            </select>
+            {!isClientUser && (
+              <select
+                name="driverId"
+                value={formData.driverId || ''}
+                onChange={(e) => setFormData(prev => ({ ...prev, driverId: e.target.value ? parseInt(e.target.value, 10) : null }))}
+                className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600"
+              >
+                <option value="">-- Sin Asignar --</option>
+                {drivers.map(d => (<option key={d.id} value={d.id}>{d.name}</option>))}
+              </select>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
-              <SearchableDropdown options={contactOptions} value={formData.clientName} onChange={(e) => setFormData(prev => ({ ...prev, clientName: e.target.value, clientId: null }))} onSelect={handleClientSelect} placeholder="Buscar cliente..." />
-              <SearchableDropdown options={contactOptions} value={formData.recipient} onChange={(e) => setFormData(prev => ({ ...prev, recipient: e.target.value }))} onSelect={handleRecipientSelect} placeholder="Buscar destinatario..." />
+              {isClientUser ? (
+                <div className="bg-gray-700 p-2 rounded-lg border border-gray-600">
+                  <p className="text-sm text-gray-400">Remitente</p>
+                  <p className="font-semibold">{currentUser.name}</p>
+                </div>
+              ) : (
+                <SearchableDropdown options={recipientContactOptions} value={formData.clientName} onChange={(e) => setFormData(prev => ({ ...prev, clientName: e.target.value, clientId: null }))} onSelect={handleClientSelect} placeholder="Buscar cliente..." />
+              )}
+              <SearchableDropdown options={recipientContactOptions} value={formData.recipient} onChange={(e) => setFormData(prev => ({ ...prev, recipient: e.target.value }))} onSelect={handleRecipientSelect} placeholder="Buscar destinatario..." />
             </div>
 
             <div>
@@ -305,8 +351,10 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
             </div>
             <div className="flex space-x-4">
               <input type="number" name="items" value={formData.items} onChange={handleChange} min="1" required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Nº Bultos" />
-              <input type="number" name="shippingCost" value={formData.shippingCost} onChange={handleChange} min="0" step="0.01" className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Precio del Porte (€)" />
               <input type="number" name="collectedAmount" value={formData.collectedAmount} onChange={handleChange} min="0" step="0.01" required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Reembolso (€)" />
+              {!isClientUser && (
+                <input type="number" name="shippingCost" value={formData.shippingCost} onChange={handleChange} min="0" step="0.01" className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Precio del Porte (€)" />
+              )}
             </div>
             <div>
               <textarea name="observations" value={formData.observations} onChange={handleChange} placeholder="Observaciones..." className="w-full bg-gray-700 text-white p-2 rounded-lg border-gray-600 h-24"></textarea>
