@@ -448,7 +448,11 @@ export const DriverView = ({
             <button onClick={handleCloseModal} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
             <h3 className="text-2xl font-bold mb-4">Detalle de Entrega #{selectedShipment.id}</h3>
             <div className="space-y-4">
-              <div><p className="font-bold text-gray-400">Cliente</p><p>{clients.find(c => c.id === selectedShipment.clientId)?.name}</p></div>
+              <div>
+                <p className="font-bold text-gray-400">Cliente</p>
+                {/* CORRECCIÓN: Mostrar el nombre del cliente guardado si no se encuentra por ID */}
+                <p>{clients.find(c => c.id === selectedShipment.clientId)?.name || selectedShipment.clientName}</p>
+              </div>
 
               <div>
                 <p className="font-bold text-gray-400">Transportista Asignado</p>

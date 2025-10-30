@@ -225,6 +225,8 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
     const shipmentData = {
       ...formData,
       clientId: finalClientId,
+      // Guardamos explícitamente el nombre del remitente para mostrarlo si no es un cliente registrado.
+      clientName: isClientUser ? currentUser.name : formData.clientName,
       destination: fullDestination,
       id: isEditing ? shipmentToEdit.id : undefined,
       items: parseInt(formData.items, 10) || 1,
