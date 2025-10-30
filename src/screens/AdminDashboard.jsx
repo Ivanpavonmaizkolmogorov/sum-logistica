@@ -58,7 +58,8 @@ export const AdminDashboard = ({
           // Un envío es activo si su estado está en la lista Y, si es 'Cobro Pendiente', no debe haber sido entregado.
           return activeStatuses.includes(s.status) && !(s.status === 'Cobro Pendiente' && s.deliveredAt);
         }
-        if (statusFilter === 'pendientes') return s.status === 'Pendiente' || (s.status === 'Cobro Pendiente' && !s.driverId);
+        // La pestaña "Pendientes de Asignar" ahora incluye 'Pendiente' y 'Cobro Pendiente' sin transportista.
+        if (statusFilter === 'pendientes') return !s.driverId && (s.status === 'Pendiente' || s.status === 'Cobro Pendiente');
         if (statusFilter === 'en_reparto') return s.status === 'En ruta';
         if (statusFilter === 'entregados') return s.status === 'Entregado';
         if (statusFilter === 'pend_cobro') return s.status === 'Cobro Pendiente';

@@ -144,19 +144,15 @@ export default function App() {
 
   // Envíos
   const handleSaveShipment = async (shipmentData) => {
-    // Si es un cliente creando, el estado ya viene definido desde el modal
-    // (En ruta si tiene driver, Pendiente si no).
-    // Si es un admin/transportista, se aplican las reglas anteriores.
-    if (activeUser.role !== 'client' && !shipmentData.id) {
-       shipmentData.status = shipmentData.driverId ? 'En ruta' : 'Pendiente';
-    }
-    if (activeUser.role === 'client') {
-      shipmentData.shippingCost = 0;
-    }
+    console.log("App.jsx: Recibido para guardar en handleSaveShipment:", { ...shipmentData });
 
     if (shipmentData.id) {
+      console.log("App.jsx: Actualizando albarán existente.");
       await api.updateShipment(shipmentData.id, shipmentData);
     } else {
+      // Para nuevos albaranes, confiamos en el estado que viene del modal.
+      // La lógica de 'Cobro Pendiente' vs 'Pendiente' ya está gestionada allí.
+      console.log("App.jsx: Creando nuevo albarán.");
       await api.addShipment(shipmentData);
     }
     setShipments(await api.getShipments());

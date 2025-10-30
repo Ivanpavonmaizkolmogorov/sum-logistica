@@ -189,7 +189,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
 
   const runSave = async () => {
     console.log("--- ShipmentModal: runSave ---");
-    console.log("Estado del formulario ANTES de procesar:", formData);
+    console.log("ShipmentModal: Estado del formulario ANTES de procesar:", { ...formData });
 
     // Si el usuario es un cliente, nos aseguramos de que el ID del remitente sea siempre el suyo.
     // Si es un admin, usamos el que esté en el formulario.
@@ -220,6 +220,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
 
     // Lógica para determinar el estado inicial
     const isDailySenderUnpaid = showSenderPayment && !formData.senderPaymentCollected;
+    console.log(`ShipmentModal: ¿Es un remitente de cobro diario sin pagar? -> ${isDailySenderUnpaid}`);
 
     const shipmentData = {
       ...formData,
@@ -232,7 +233,13 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
       priority: formData.priority || 'Normal',
       senderPaymentCollectedAt: formData.senderPaymentCollected ? new Date().toISOString() : null,
       paymentCollectedBy: formData.senderPaymentCollected ? currentUser.id : null,
-      status: isEditing ? shipmentToEdit.status : (isDailySenderUnpaid ? 'Cobro Pendiente' : 'Pendiente'), // El cliente siempre creará como 'Pendiente'
+      // Si es un remitente diario no pagado, el estado es 'Cobro Pendiente' y NO se le asigna transportista
+      // para que aparezca en "Pendiente de Asignar".
+      status: isEditing
+        ? shipmentToEdit.status
+        : isDailySenderUnpaid
+        ? 'Cobro Pendiente'
+        : 'Pendiente',
     };
 
     // Si es un cliente con transportista por defecto, asignarlo y ponerlo 'En ruta'
@@ -241,15 +248,26 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
       shipmentData.status = 'Pendiente'; // Cambiado de 'En ruta' a 'Pendiente'
     }
 
+    // *** LÓGICA CLAVE ***
+    // Si el pago del remitente está pendiente, forzamos que no tenga transportista para que aparezca en "Pendiente de Asignar".
+    if (!isEditing && isDailySenderUnpaid) {
+      shipmentData.driverId = null;
+    }
+
     // Para clientes, el coste del porte es 0 por defecto y el estado es siempre Pendiente
     if (isClientUser) {
+      console.log("ShipmentModal: El usuario es un cliente. Ajustando datos.");
       shipmentData.shippingCost = 0;
+      // CORRECCIÓN: No sobrescribir el estado si ya es 'Cobro Pendiente'.
+      if (shipmentData.status !== 'Cobro Pendiente') {
+        shipmentData.status = 'Pendiente';
+      }
     }
 
     delete shipmentData.poblacion;
     delete shipmentData.senderPaymentCollected;
 
-    console.log("Datos del albarán listos para guardar:", shipmentData);
+    console.log("ShipmentModal: Datos del albarán listos para guardar:", { ...shipmentData });
 
     onSave(shipmentData);
   };

@@ -49,13 +49,17 @@ export const DriverView = ({
       setList([]);
     } else {
       let filteredShipments = shipments.filter(shipment => {
+        console.log(`DriverView: Filtrando albarán #${shipment.id}, estado: ${shipment.status}, driverId: ${shipment.driverId}`);
         if (activeTab === 'reparto') return shipment.driverId === driver.id && (shipment.status === 'En ruta' || (shipment.status === 'Cobro Pendiente' && !shipment.deliveredAt)); 
         // Un envío está 'pendiente' para este transportista si:
-        // 1. No tiene transportista y está en estado 'Pendiente' (pool general)
-        // 2. O ESTÁ asignado a este transportista pero sigue en estado 'Pendiente'
-        if (activeTab === 'pendiente') return (shipment.status === 'Pendiente' && !shipment.driverId) || (shipment.status === 'Pendiente' && shipment.driverId === driver.id);
+        // 1. No tiene transportista y está en estado 'Pendiente' O 'Cobro Pendiente' (pool general).
+        // 2. O ESTÁ asignado a este transportista pero sigue en estado 'Pendiente'.
+        if (activeTab === 'pendiente') return (!shipment.driverId && (shipment.status === 'Pendiente' || shipment.status === 'Cobro Pendiente'))
+                                             || (shipment.driverId === driver.id && shipment.status === 'Pendiente');
         if (activeTab === 'completados') return shipment.driverId === driver.id && (shipment.status === 'Entregado');
-        if (activeTab === 'cobroPendiente') return shipment.driverId === driver.id && shipment.status === 'Cobro Pendiente';
+        // CORRECCIÓN: La pestaña 'Pend. Cobro' debe mostrar TODOS los albaranes con ese estado,
+        // estén asignados a este transportista o no, para que la oficina pueda gestionarlos.
+        if (activeTab === 'cobroPendiente') return shipment.status === 'Cobro Pendiente';
         return false;
       });
       setList(filteredShipments);
@@ -101,7 +105,9 @@ export const DriverView = ({
 
   const counts = {
     reparto: shipments.filter(s => s.driverId === driver.id && (s.status === 'En ruta' || (s.status === 'Cobro Pendiente' && !s.deliveredAt))).length,
-    pendiente: shipments.filter(s => (s.status === 'Pendiente' && !s.driverId) || (s.status === 'Pendiente' && s.driverId === driver.id)).length,
+    // CORRECCIÓN: El contador de pendientes debe incluir 'Pendiente' y 'Cobro Pendiente' sin asignar.
+    pendiente: shipments.filter(s => (!s.driverId && (s.status === 'Pendiente' || s.status === 'Cobro Pendiente'))
+                                   || (s.driverId === driver.id && s.status === 'Pendiente')).length,
     completados: shipments.filter(s => s.driverId === driver.id && (s.status === 'Entregado')).length,
     cobroPendiente: shipments.filter(s => s.driverId === driver.id && s.status === 'Cobro Pendiente').length,
     recogidas_driver: pickups.filter(p => p.driverId === driver.id && p.createdAt && p.createdAt.startsWith(selectedDate)).length,
