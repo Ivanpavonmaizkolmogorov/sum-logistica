@@ -5,7 +5,7 @@ import SearchableDropdown from '../ui/SearchableDropdown';
 import SenderPaymentConfirmModal from './SenderPaymentConfirmModal';
 import SenderForgotAlertModal from './SenderForgotAlertModal';
 
-const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, recipients, drivers, onAddRecipient, onAddClient, currentUser }) => {
+const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, recipients, drivers, onAddRecipient, onAddClient, currentUser, isPickupMode = false }) => {
   const isClientUser = currentUser.role === 'client';
   const isEditing = shipmentToEdit && shipmentToEdit.id;
   const initialFormState = {
@@ -51,7 +51,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
     } else {
       setFormData(initialFormState);
     }
-  }, [shipmentToEdit, isOpen, clients, isClientUser, currentUser]);
+  }, [shipmentToEdit, isOpen, clients]);
   
   // Efecto para pre-seleccionar el transportista por defecto del cliente
   useEffect(() => {
@@ -216,16 +216,31 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
       await onAddRecipient(newRecipient); // Assuming onAddRecipient is async
     }
 
+    if (isPickupMode) {
+      const client = clients.find(c => c.id === finalClientId);
+      const pickupShipment = {
+        clientId: finalClientId,
+        clientName: client?.name || formData.clientName,
+        recipient: "RECOGIDA PENDIENTE DE DESTINO",
+        destination: client?.address || "Recogida en cliente",
+        items: parseInt(formData.items, 10) || 1,
+        observations: `RECOGIDA: ${formData.observations || ''}`,
+        status: 'Pendiente',
+      };
+      onSave(pickupShipment);
+      return;
+    }
+
     const fullDestination = [formData.destination, formData.poblacion].filter(Boolean).join(', ');
 
     // Lógica para determinar el estado inicial
     const isDailySenderUnpaid = showSenderPayment && !formData.senderPaymentCollected;
     console.log(`ShipmentModal: ¿Es un remitente de cobro diario sin pagar? -> ${isDailySenderUnpaid}`);
 
-    const shipmentData = {
+    let shipmentData = {
       ...formData,
       clientId: finalClientId,
-      // Guardamos explícitamente el nombre del remitente para mostrarlo si no es un cliente registrado.
+      // Guardamos explícitamente el nombre del remitente para mostrarlo si no es un cliente registrado
       clientName: isClientUser ? currentUser.name : formData.clientName,
       destination: fullDestination,
       id: isEditing ? shipmentToEdit.id : undefined,
@@ -234,36 +249,37 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
       collectedAmount: parseFloat(formData.collectedAmount) || 0,
       priority: formData.priority || 'Normal',
       senderPaymentCollectedAt: formData.senderPaymentCollected ? new Date().toISOString() : null,
-      paymentCollectedBy: formData.senderPaymentCollected ? currentUser.id : null,
-      // Si es un remitente diario no pagado, el estado es 'Cobro Pendiente' y NO se le asigna transportista
-      // para que aparezca en "Pendiente de Asignar".
-      status: isEditing
-        ? shipmentToEdit.status
-        : isDailySenderUnpaid
-        ? 'Cobro Pendiente'
-        : 'Pendiente',
+      paymentCollectedBy: formData.senderPaymentCollected ? currentUser.id : null
     };
 
-    // Si es un cliente con transportista por defecto, asignarlo y ponerlo 'En ruta'
-    if (isClientUser && currentUser.defaultDriverId) {
-      shipmentData.driverId = currentUser.defaultDriverId;
-      shipmentData.status = 'Pendiente'; // Cambiado de 'En ruta' a 'Pendiente'
-    }
-
-    // *** LÓGICA CLAVE ***
-    // Si el pago del remitente está pendiente, forzamos que no tenga transportista para que aparezca en "Pendiente de Asignar".
-    if (!isEditing && isDailySenderUnpaid) {
-      shipmentData.driverId = null;
-    }
-
-    // Para clientes, el coste del porte es 0 por defecto y el estado es siempre Pendiente
-    if (isClientUser) {
-      console.log("ShipmentModal: El usuario es un cliente. Ajustando datos.");
-      shipmentData.shippingCost = 0;
-      // CORRECCIÓN: No sobrescribir el estado si ya es 'Cobro Pendiente'.
-      if (shipmentData.status !== 'Cobro Pendiente') {
+    // Lógica de estado y asignación de transportista para NUEVOS albaranes
+    if (!isEditing) {
+      if (isDailySenderUnpaid) {
+        // Si es un remitente diario y no ha pagado, el estado es 'Cobro Pendiente' y no se asigna transportista
+        shipmentData.status = 'Cobro Pendiente';
+        shipmentData.driverId = null;
+      } else if (isClientUser && currentUser.defaultDriverId) {
+        // Si es un cliente con transportista por defecto (y no es de cobro pendiente)
+        shipmentData.driverId = currentUser.defaultDriverId;
+        shipmentData.status = 'Pendiente';
+      } else {
+        // Caso general para nuevos albaranes (admin sin transportista asignado, etc.)
         shipmentData.status = 'Pendiente';
       }
+    } else {
+      // Si estamos editando, mantenemos el estado que ya tenía
+      shipmentData.status = shipmentToEdit.status;
+    }
+
+    // Para clientes, el coste del porte es siempre 0
+    if (isClientUser) {
+      console.log("ShipmentModal: El usuario es un cliente. Ajustando coste de envío a 0.");
+      shipmentData.shippingCost = 0;
+    }
+
+    // Si el pago del remitente está pendiente (y es un nuevo albarán), forzamos que no tenga transportista para que aparezca en "Pendiente de Asignar".
+    if (!isEditing && isDailySenderUnpaid) {
+      shipmentData.driverId = null;
     }
 
     delete shipmentData.poblacion;
@@ -303,7 +319,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
         <Card className="w-full max-w-lg relative h-[90vh] overflow-y-auto">
           <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
-          <h3 className="text-2xl font-bold mb-4 text-white">{isEditing ? 'Editar' : 'Crear'} Albarán</h3>
+          <h3 className="text-2xl font-bold mb-4 text-white">{isPickupMode ? 'Registrar Recogida' : (isEditing ? 'Editar' : 'Crear') + ' Albarán'}</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isClientUser && (
               <select
@@ -326,54 +342,66 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
               ) : (
                 <SearchableDropdown options={recipientContactOptions} value={formData.clientName} onChange={(e) => setFormData(prev => ({ ...prev, clientName: e.target.value, clientId: null }))} onSelect={handleClientSelect} placeholder="Buscar cliente..." />
               )}
-              <SearchableDropdown options={recipientContactOptions} value={formData.recipient} onChange={(e) => setFormData(prev => ({ ...prev, recipient: e.target.value }))} onSelect={handleRecipientSelect} placeholder="Buscar destinatario..." />
+              {!isPickupMode && (
+                <SearchableDropdown options={recipientContactOptions} value={formData.recipient} onChange={(e) => setFormData(prev => ({ ...prev, recipient: e.target.value }))} onSelect={handleRecipientSelect} placeholder="Buscar destinatario..." />
+              )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Paga portes</label>
-              <div className="flex space-x-2">
-                <button type="button" onClick={() => setFormData(prev => ({ ...prev, shippingPayer: 'remitente' }))} className={`flex-1 py-2 px-4 rounded-lg font-semibold ${formData.shippingPayer === 'remitente' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>Remitente</button>
-                <button type="button" onClick={() => setFormData(prev => ({ ...prev, shippingPayer: 'destinatario' }))} className={`flex-1 py-2 px-4 rounded-lg font-semibold ${formData.shippingPayer === 'destinatario' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>Destinatario</button>
+            {!isPickupMode && (
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Paga portes</label>
+                <div className="flex space-x-2">
+                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, shippingPayer: 'remitente' }))} className={`flex-1 py-2 px-4 rounded-lg font-semibold ${formData.shippingPayer === 'remitente' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>Remitente</button>
+                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, shippingPayer: 'destinatario' }))} className={`flex-1 py-2 px-4 rounded-lg font-semibold ${formData.shippingPayer === 'destinatario' ? 'bg-blue-600' : 'bg-gray-600 hover:bg-gray-500'}`}>Destinatario</button>
+                </div>
               </div>
-            </div>
+            )}
 
             {isNewClient && (
               <div className="bg-gray-700/50 p-3 rounded-lg">
                 <label className="flex items-center space-x-2 text-white"><input type="checkbox" checked={saveNewClient} onChange={(e) => setSaveNewClient(e.target.checked)} className="h-4 w-4 rounded bg-gray-600" /><span>Guardar nuevo cliente "{formData.clientName}"</span></label>
               </div>
             )}
+            
+            {!isPickupMode && (
+              <>
+                {showSenderPayment && (
+                  <div className="bg-gray-700/50 p-3 rounded-lg">
+                    <label className="flex items-center space-x-2 text-white">
+                      <input
+                        type="checkbox"
+                        checked={formData.senderPaymentCollected}
+                        onChange={(e) => setFormData(prev => ({ ...prev, senderPaymentCollected: e.target.checked }))}
+                        className="h-4 w-4 rounded bg-gray-600"
+                      /><span>¿Cobrado al remitente?</span>
+                    </label>
+                  </div>
+                )}
 
-            {showSenderPayment && (
-              <div className="bg-gray-700/50 p-3 rounded-lg">
-                <label className="flex items-center space-x-2 text-white">
-                  <input
-                    type="checkbox"
-                    checked={formData.senderPaymentCollected}
-                    onChange={(e) => setFormData(prev => ({ ...prev, senderPaymentCollected: e.target.checked }))}
-                    className="h-4 w-4 rounded bg-gray-600"
-                  /><span>¿Cobrado al remitente?</span>
-                </label>
-              </div>
-            )}
-
-            {isNewRecipient && (
-              <div className="bg-gray-700/50 p-3 rounded-lg"><label className="flex items-center space-x-2 text-white"><input type="checkbox" checked={saveNewRecipient} onChange={(e) => setSaveNewRecipient(e.target.checked)} className="h-4 w-4 rounded bg-gray-600" /><span>Guardar "{formData.recipient}"</span></label></div>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input type="text" name="poblacion" value={formData.poblacion} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Población" />
-              <div className="relative">
-                <input type="text" name="destination" value={formData.destination} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg pr-20" placeholder="Dirección de Entrega" />
-                <div className="absolute inset-y-0 right-0 flex items-center">
-                  <button type="button" onClick={handleGetCurrentLocation} className="px-3 text-gray-400 hover:text-blue-400"><LocateFixed size={18} /></button>
-                  <button type="button" onClick={handleViewOnMap} className="px-3 text-gray-400 hover:text-blue-400" disabled={!formData.destination || !formData.poblacion}><MapPin size={18} /></button>
+                {isNewRecipient && (
+                  <div className="bg-gray-700/50 p-3 rounded-lg"><label className="flex items-center space-x-2 text-white"><input type="checkbox" checked={saveNewRecipient} onChange={(e) => setSaveNewRecipient(e.target.checked)} className="h-4 w-4 rounded bg-gray-600" /><span>Guardar "{formData.recipient}"</span></label></div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <input type="text" name="poblacion" value={formData.poblacion} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Población" />
+                  <div className="relative">
+                    <input type="text" name="destination" value={formData.destination} onChange={handleChange} required className="w-full bg-gray-700 text-white p-2 rounded-lg pr-20" placeholder="Dirección de Entrega" />
+                    <div className="absolute inset-y-0 right-0 flex items-center">
+                      <button type="button" onClick={handleGetCurrentLocation} className="px-3 text-gray-400 hover:text-blue-400"><LocateFixed size={18} /></button>
+                      <button type="button" onClick={handleViewOnMap} className="px-3 text-gray-400 hover:text-blue-400" disabled={!formData.destination || !formData.poblacion}><MapPin size={18} /></button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
             <div className="flex space-x-4">
               <input type="number" name="items" value={formData.items} onChange={handleChange} min="1" required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Nº Bultos" />
-              <input type="number" name="collectedAmount" value={formData.collectedAmount} onChange={handleChange} min="0" step="0.01" required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Reembolso (€)" />
-              {!isClientUser && (
-                <input type="number" name="shippingCost" value={formData.shippingCost} onChange={handleChange} min="0" step="0.01" className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Precio del Porte (€)" />
+              {!isPickupMode && (
+                <>
+                  <input type="number" name="collectedAmount" value={formData.collectedAmount} onChange={handleChange} min="0" step="0.01" required className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Reembolso (€)" />
+                  {!isClientUser && (
+                    <input type="number" name="shippingCost" value={formData.shippingCost} onChange={handleChange} min="0" step="0.01" className="w-full bg-gray-700 text-white p-2 rounded-lg" placeholder="Precio del Porte (€)" />
+                  )}
+                </>
               )}
             </div>
             <div>
@@ -387,8 +415,8 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
               {formData.merchandisePhoto && <img src={formData.merchandisePhoto} alt="Vista previa" className="mt-4 rounded-lg max-h-40 mx-auto" />}
             </div>
             <div className="pt-4">
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">
-                {isEditing ? 'Guardar Cambios' : 'Generar Albarán'}
+              <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-lg ${isPickupMode ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                {isPickupMode ? 'Confirmar Recogida' : (isEditing ? 'Guardar Cambios' : 'Generar Albarán')}
               </button>
             </div>
           </form>

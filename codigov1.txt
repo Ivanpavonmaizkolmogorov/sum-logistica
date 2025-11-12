@@ -1245,6 +1245,7 @@ const DriverView = ({
       setList([]); // Limpiar lista de envíos
     } else {
       let filteredShipments = shipments.filter(shipment => {
+      const filteredShipments = shipments.filter(shipment => {
         if (activeTab === 'reparto') return shipment.driverId === driver.id && shipment.status === 'En ruta';
         if (activeTab === 'pendiente') return shipment.status === 'Pendiente';
         if (activeTab === 'completados') return shipment.driverId === driver.id && (shipment.status === 'Entregado');
@@ -1323,6 +1324,16 @@ const DriverView = ({
     const sortedList = [...list].sort((a, b) => getCity(a.destination).localeCompare(getCity(b.destination)));
     setList(sortedList);
   };
+
+  const handleOptimizeRoute = () => {
+    // Simulación de optimización: reordena aleatoriamente la lista.
+    // En una implementación real, esto llamaría a una API de optimización
+    // que devolvería el orden óptimo basado en las direcciones.
+    const optimizedList = [...list].sort(() => Math.random() - 0.5);
+    setList(optimizedList);
+    // Aquí se podría mostrar una notificación de "Ruta optimizada".
+  };
+
 
   const handleDragStart = (e, index) => {
     dragItem.current = index;
@@ -1468,14 +1479,22 @@ const DriverView = ({
           <button onClick={() => setActiveTab('cobroPendiente')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'cobroPendiente' ? 'bg-purple-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Pend. Cobro ({counts.cobroPendiente})</button>
           <button onClick={() => setActiveTab('cuenta')} className={`flex-1 px-3 py-2 rounded-md font-semibold transition-colors text-sm ${activeTab === 'cuenta' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Cuenta</button>
         </div>
-        {activeTab === 'reparto' && appSettings.allowManualSort && ( // Check settings for ordering
-          <button
-            onClick={handleSortByPopulation}
-            className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg text-sm w-full sm:w-auto"
-          >
-            <Shuffle size={16} />
-            Ordenar por Población
-          </button>
+        {activeTab === 'reparto' && (
+          <div className="flex items-center gap-2">
+            {appSettings.allowManualSort && (
+            <button
+              onClick={handleSortByPopulation}
+              className="flex items-center gap-2 bg-gray-600 hover:bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg text-sm w-full sm:w-auto"
+            >
+              <Shuffle size={16} />
+              Ordenar por Población
+            </button>
+            )}
+            <button onClick={handleOptimizeRoute} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg text-sm w-full sm:w-auto">
+              <LocateFixed size={16} />
+              Optimizar Ruta
+            </button>
+          </div>
         )}
         {(activeTab === 'recogidas_driver' || activeTab === 'cuenta') && (
            <div>

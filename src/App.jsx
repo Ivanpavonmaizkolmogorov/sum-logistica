@@ -7,15 +7,13 @@ import './styles/global.css';
 
 // Importar las pantallas principales
 import LoginScreen from './screens/LoginScreen';
-import { AdminDashboard } from './screens/AdminDashboard';
+import { AdminDashboard } from './screens/AdminDashboard.jsx';
 import { DriverView } from './screens/DriverView'; // Mantener esta ruta si DriverView está en screens
 import { ClientView } from './ClientView'; // CORRECCIÓN: Importar ClientView desde la raíz de src
-import { AdminSettings } from './screens/AdminSettings'; // Importar AdminSettings
 import { ClientManagementView } from './screens/ClientManagementView'; // Importar ClientManagementView
 
 // Importar los modales globales
 import ShipmentModal from './components/modals/ShipmentModal';
-import PickupModal from './components/modals/PickupModal'; // Importar ClientModal
 import ClientModal from './components/modals/ClientModal';
 import DriverModal from './components/modals/DriverModal';
 
@@ -34,7 +32,7 @@ export default function App() {
 
   // Estados para controlar los modales
   const [isShipmentModalOpen, setIsShipmentModalOpen] = useState(false);
-  const [isPickupModalOpen, setIsPickupModalOpen] = useState(false);
+  const [isPickupMode, setIsPickupMode] = useState(false); // Nuevo estado para modo recogida
   const [isClientModalOpen, setIsClientModalOpen] = useState(false); // Nuevo estado para modal de cliente
   const [isDriverModalOpen, setIsDriverModalOpen] = useState(false); // Nuevo estado para modal de transportista
   const [clientToEdit, setClientToEdit] = useState(null); // Nuevo estado para cliente a editar
@@ -175,13 +173,6 @@ export default function App() {
     setShipments(await api.getShipments());
   };
 
-  // Recogidas
-  const handleCreatePickup = async (pickupData) => {
-    await api.addPickup(pickupData);
-    setPickups(await api.getPickups());
-    closePickupModal();
-  };
-
   // Destinatarios
   const handleAddRecipient = async (recipientData) => {
     await api.addRecipient(recipientData);
@@ -212,14 +203,14 @@ export default function App() {
         }
         break;
       case 'client':
-        const client = api.initialClientsForLogin.find(c => c.email === username && c.password === password);
+        const client = clients.find(c => c.email === username && c.password === password);
         if (client && client.hasAccess) { // <-- VERIFICACIÓN DE ACCESO
           setCurrentUser({ ...client, role: 'client' });
           return true;
         }
         break;
       case 'driver':
-        const driver = api.initialDriversForLogin.find(d => d.name === username && d.password === password);
+        const driver = drivers.find(d => d.name === username && d.password === password);
         if (driver) {
           setCurrentUser({ ...driver, role: 'driver' });
           return true;
@@ -247,14 +238,16 @@ export default function App() {
 
   const openCreateShipmentModal = () => { setShipmentToEdit(null); setIsShipmentModalOpen(true); };
   const openEditShipmentModal = (shipment) => { setShipmentToEdit(shipment); setIsShipmentModalOpen(true); };
-  const closeShipmentModal = () => { setIsShipmentModalOpen(false); setShipmentToEdit(null); };
+  const closeShipmentModal = () => { setIsShipmentModalOpen(false); setShipmentToEdit(null); setIsPickupMode(false); };
   
   const openCreateDriverModal = () => { setDriverToEdit(null); setIsDriverModalOpen(true); };
   const openEditDriverModal = (driver) => { setDriverToEdit(driver); setIsDriverModalOpen(true); };
   const closeDriverModal = () => setIsDriverModalOpen(false);
 
-  const openCreatePickupModal = () => setIsPickupModalOpen(true);
-  const closePickupModal = () => setIsPickupModalOpen(false);
+  const openCreatePickupModal = () => {
+    setIsPickupMode(true);
+    openCreateShipmentModal();
+  };
 
   const openCreateClientModal = () => { setClientToEdit(null); setIsClientModalOpen(true); };
   const openEditClientModal = (client) => { setClientToEdit(client); setIsClientModalOpen(true); };
@@ -313,14 +306,12 @@ export default function App() {
                 pickups={pickups}
                 clients={clients}
                 drivers={drivers}
-                onAddDriver={handleAddDriver}
-                onUpdateDriver={handleUpdateDriver}
                 onEditDriver={openEditDriverModal}
-                onEditShipment={openEditShipmentModal}
-                onDeleteShipment={handleDeleteShipment}
+                onEditShipment={openEditShipmentModal} // <-- CORRECCIÓN: Nombre de prop
+                onDeleteShipment={handleDeleteShipment} 
                 onImpersonateDriver={handleImpersonateDriver}
                 appSettings={appSettings}
-                onUpdateSettings={setAppSettings}
+                onUpdateSettings={setAppSettings} // <-- AÑADIDO: Prop faltante
                 onAddClient={handleAddClient}
                 onUpdateClient={handleUpdateClient}
                 onDeleteClient={handleDeleteClient}
@@ -357,14 +348,7 @@ export default function App() {
         onAddRecipient={handleAddRecipient}
         onAddClient={handleAddClient}
         currentUser={activeUser}
-      />
-
-      <PickupModal
-        isOpen={isPickupModalOpen}
-        onCancel={closePickupModal}
-        onSave={handleCreatePickup}
-        clients={clients}
-        currentUser={activeUser}
+        isPickupMode={isPickupMode}
       />
 
       {isClientModalOpen && <ClientModal

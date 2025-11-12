@@ -12,19 +12,16 @@ import Card from '../components/ui/Card';
 import StatusBadge from '../components/ui/StatusBadge';
 import DriverModal from '../components/modals/DriverModal';
 import DeleteConfirmationModal from '../components/modals/DeleteConfirmationModal'; // Importar DeleteConfirmationModal
+import { RoutePlanningView } from './RoutePlanningView';
 import { ClientManagementView } from './ClientManagementView';
-import { AdminSettings } from './AdminSettings';
-import { RoutePlanningView } from './RoutePlanningView'; // Importar la nueva vista
+import { AdminSettings } from './AdminSettings'; // Importar AdminSettings
 
 export const AdminDashboard = ({
   shipments, pickups, clients, drivers,
-  onAddDriver, onUpdateDriver, onEditShipment, onDeleteShipment, onImpersonateDriver,
-  appSettings, onUpdateSettings, onOptimizeRoutes,
-  onAddClient, onUpdateClient, onDeleteClient,
+  onEditShipment, onDeleteShipment, onImpersonateDriver,
+  appSettings, onUpdateSettings, onOptimizeRoutes, onAddClient, onUpdateClient, onDeleteClient,
   onOpenCreateClient, onOpenEditClient, onOpenCreateDriver, onOpenEditDriver
 }) => {
-  const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
-  const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [clientToEdit, setClientToEdit] = useState(null);
   const [driverToEdit, setDriverToEdit] = useState(null);
   const [shipmentToDelete, setShipmentToDelete] = useState(null);
@@ -32,13 +29,14 @@ export const AdminDashboard = ({
   const [expandedSummaryDriverId, setExpandedSummaryDriverId] = useState(null);
   const [sortOrder, setSortOrder] = useState('id');
   const [statusFilter, setStatusFilter] = useState('activos');
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'activity', 'planning', 'clients', 'settings'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'activity', 'clients', 'settings', 'planner'
   const [searchTerm, setSearchTerm] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [filterDriverId, setFilterDriverId] = useState('');
   const [filterHasReembolso, setFilterHasReembolso] = useState(false);
   const [filterHasIncidencia, setFilterHasIncidencia] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedShipment, setSelectedShipment] = useState(null); // Para mostrar detalles
 
   const stats = {
     total: shipments.length,
@@ -47,13 +45,15 @@ export const AdminDashboard = ({
     pending: shipments.filter(s => s.status === 'Pendiente' || (s.status === 'Cobro Pendiente' && !s.driverId && !s.deliveredAt)).length,
   };
 
+  const toggleShipmentDetails = (shipment) => setSelectedShipment(prev => (prev?.id === shipment.id ? null : shipment));
+
   const sortedShipments = useMemo(() => {
     let filteredShipments = [...shipments];
 
     // 1. Filtro por estado principal
     if (statusFilter !== 'todos') {
       const activeStatuses = ['Pendiente', 'En ruta', 'Cobro Pendiente'];
-      filteredShipments = shipments.filter(s => {
+      filteredShipments = filteredShipments.filter(s => {
         if (statusFilter === 'activos') {
           // Un envío es activo si su estado está en la lista Y, si es 'Cobro Pendiente', no debe haber sido entregado.
           return activeStatuses.includes(s.status) && !(s.status === 'Cobro Pendiente' && s.deliveredAt);
@@ -63,6 +63,9 @@ export const AdminDashboard = ({
         if (statusFilter === 'en_reparto') return s.status === 'En ruta';
         if (statusFilter === 'entregados') return s.status === 'Entregado';
         if (statusFilter === 'pend_cobro') return s.status === 'Cobro Pendiente';
+        // CORRECCIÓN: La pestaña "Pend. Cobro" debe mostrar TODOS los albaranes con ese estado,
+        // independientemente de si han sido entregados o no. El estado es el que manda.
+        if (statusFilter === 'pend_cobro') return s.status === 'Cobro Pendiente'; 
         if (statusFilter === 'incidencia') return s.status === 'Incidencia';
         return true;
       });
@@ -173,13 +176,6 @@ export const AdminDashboard = ({
 
   const toggleSummaryDetails = (driverId) => setExpandedSummaryDriverId(prevId => (prevId === driverId ? null : driverId));
 
-  const handleSaveDriver = (driverData) => {
-    if (driverData.id) onUpdateDriver(driverData.id, driverData); else onAddDriver(driverData);
-    setIsDriverModalOpen(false); setDriverToEdit(null);
-  };
-
-  const handleOpenCreateDriverModal = () => { setDriverToEdit(null); setIsDriverModalOpen(true); };
-  const handleOpenEditDriverModal = (driver) => { setDriverToEdit(driver); setIsDriverModalOpen(true); };
   const confirmDeleteShipment = () => { if (shipmentToDelete) { onDeleteShipment(shipmentToDelete.id); setShipmentToDelete(null); } };
 
   const handleDeleteClientClick = (client) => {
@@ -234,9 +230,9 @@ export const AdminDashboard = ({
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         <h2 className="text-3xl font-bold text-white">Panel de Administración</h2>
         <div className="flex items-center space-x-2 bg-gray-700 p-1 rounded-lg">
+          <button onClick={() => setView('planner')} className={`px-4 py-2 rounded-md font-semibold ${view === 'planner' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Planificador</button>
           <button onClick={() => setView('dashboard')} className={`px-4 py-2 rounded-md font-semibold ${view === 'dashboard' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>General</button>
           <button onClick={() => setView('activity')} className={`px-4 py-2 rounded-md font-semibold ${view === 'activity' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Actividad y Resúmenes</button>
-          <button onClick={() => setView('planning')} className={`px-4 py-2 rounded-md font-semibold ${view === 'planning' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Planificar Rutas</button>
           <button onClick={() => setView('clients')} className={`px-4 py-2 rounded-md font-semibold ${view === 'clients' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Clientes</button>
           <button onClick={() => setView('settings')} className={`px-4 py-2 rounded-md font-semibold ${view === 'settings' ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-600'}`}>Ajustes</button>
         </div>
@@ -486,12 +482,8 @@ export const AdminDashboard = ({
         </div>
       )}
 
-      {view === 'planning' && (
-        <RoutePlanningView
-          shipments={shipments}
-          drivers={drivers}
-          onOptimize={onOptimizeRoutes} // <-- Conectamos la función del backend
-        />
+      {view === 'planner' && (
+        <RoutePlanningView shipments={shipments} drivers={drivers} onOptimize={onOptimizeRoutes} />
       )}
 
       {view === 'clients' && (
@@ -507,7 +499,6 @@ export const AdminDashboard = ({
         <AdminSettings appSettings={appSettings} onUpdateSettings={onUpdateSettings} />
       )}
 
-      {isDriverModalOpen && <DriverModal driverToEdit={driverToEdit} onSave={handleSaveDriver} onCancel={() => { setIsDriverModalOpen(false); setDriverToEdit(null); }} />}
       <DeleteConfirmationModal shipment={shipmentToDelete} onConfirm={confirmDeleteShipment} onCancel={() => setShipmentToDelete(null)} />
     </div>
   );
