@@ -18,7 +18,7 @@ import PrintPreviewModal from '../components/modals/PrintPreviewModal';
 export const DriverView = ({
   driver, shipments, pickups, clients, drivers,
   onUpdateShipment, onCreateShipment, onEditShipment, onCreatePickup,
-  appSettings
+  appSettings, onConvertToShipment
 }) => {
   const [activeTab, setActiveTab] = useState('reparto');
   const [list, setList] = useState([]);
@@ -41,7 +41,7 @@ export const DriverView = ({
 
       let filteredShipments = shipments.filter(shipment => {
         console.log(`DriverView: Filtrando albarán #${shipment.id}, estado: ${shipment.status}, driverId: ${shipment.driverId}`);
-        if (activeTab === 'reparto') return shipment.driverId === driver.id && (shipment.status === 'En ruta' || (shipment.status === 'Cobro Pendiente' && !shipment.deliveredAt)); 
+        if (activeTab === 'reparto') return shipment.driverId === driver.id && (shipment.status === 'En ruta' || (shipment.status === 'Cobro Pendiente' && !shipment.deliveredAt));
         // Un envío está 'pendiente' para este transportista si:
         // 1. No tiene transportista y está en estado 'Pendiente' O 'Cobro Pendiente' (pool general).
         // 2. O ESTÁ asignado a este transportista pero sigue en estado 'Pendiente'.
@@ -151,6 +151,11 @@ export const DriverView = ({
     setShowPaymentAlert(false);
     setShowPrintPreview(false);
   };
+  const handleConvertFromDetail = (shipment) => {
+    handleCloseModal();
+    onConvertToShipment(shipment);
+  };
+
   const handleEditFromDetail = (shipment) => { handleCloseModal(); onEditShipment(shipment); };
   const handleSignatureSave = (signatureData) => { onUpdateShipment(selectedShipment.id, { signature: signatureData }); setShowSignaturePad(false); setSelectedShipment(p => ({ ...p, signature: signatureData })); };
   const handlePhotoUpload = (event) => {
@@ -189,14 +194,13 @@ export const DriverView = ({
     console.log(`¿Debe cobrar portes al destinatario?: ${shouldCollectShippingCost}`);
 
     if (appSettings.showPaymentAlertOnDelivery && (needsReimbursement || shouldCollectShippingCost)) {
-      console.log("DECISIÓN: Mostrar alerta de cobro en destino.");
       setShowPaymentAlert(true);
     } else if (isDailySenderPayment && !selectedShipment.senderPaymentCollectedAt) {
       console.log("DECISIÓN: Marcar como 'Cobro Pendiente' (remitente diario no pagado).");
       onUpdateShipment(selectedShipment.id, {
         status: 'Cobro Pendiente',
         deliveredAt: new Date().toISOString(),
-        paymentNotes: "Cobro pendiente del REMITENTE"
+        paymentNotes: "Cobro pendiente del remitente"
       });
       handleCloseModal();
     } else { // Si no hay nada que cobrar, se entrega directamente
@@ -428,7 +432,7 @@ export const DriverView = ({
               <div className="space-y-4 text-center">
                 <div>
                   <p className="font-bold text-gray-400">Cliente de Recogida</p>
-                  <p className="text-lg">{clients.find(c => c.id === selectedShipment.clientId)?.name || selectedShipment.clientName}</p>
+                  <p className="text-lg">{clients.find(c => c.id === selectedShipment.clientId)?.name}</p>
                 </div>
                 <div>
                   <p className="font-bold text-gray-400">Dirección</p>
@@ -436,7 +440,7 @@ export const DriverView = ({
                 </div>
                 <div className="pt-4">
                   <button
-                    onClick={() => handleEditFromDetail(selectedShipment)}
+                    onClick={() => handleConvertFromDetail(selectedShipment)}
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-lg text-lg"
                   >
                     Recogida Realizada

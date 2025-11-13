@@ -13,7 +13,7 @@ const PaymentAlertModal = ({ shipment, onConfirm, onCancel }) => {
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-md relative text-center">
         <AlertTriangle size={48} className="mx-auto text-yellow-400 mb-4" />
-        <h3 className="text-2xl font-bold mb-4 text-yellow-400">¡ATENCIÓN! COBRO PENDIENTE</h3>
+        <h3 className="text-2xl font-bold mb-4 text-white">¡Atención! Cobro Requerido</h3>
         <p className="text-gray-300 mb-6">Este envío requiere cobrar al destinatario:</p>
         <div className="space-y-2 mb-6 text-left bg-gray-900 p-4 rounded-lg">
           {needsReimbursement && (

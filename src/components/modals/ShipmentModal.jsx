@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, LocateFixed, Camera, X } from 'lucide-react';
 import Card from '../ui/Card';
 import SearchableDropdown from '../ui/SearchableDropdown';
-import SenderPaymentConfirmModal from './SenderPaymentConfirmModal';
+import PaymentOriginAlertModal from './PaymentOriginAlertModal';
 import SenderForgotAlertModal from './SenderForgotAlertModal';
 
 const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, recipients, drivers, onAddRecipient, onAddClient, currentUser, isPickupMode = false }) => {
@@ -29,25 +29,38 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
   const [saveNewClient, setSaveNewClient] = useState(false);
   const [saveNewRecipient, setSaveNewRecipient] = useState(false);
   const [showSenderPayment, setShowSenderPayment] = useState(false);
-  const [showSenderPaymentAlert, setShowSenderPaymentAlert] = useState(false);
+  const [showPaymentOriginAlert, setShowPaymentOriginAlert] = useState(false);
   const [showSenderForgotAlert, setShowSenderForgotAlert] = useState(false);
   const merchandisePhotoInputRef = useRef(null);
 
   useEffect(() => {
-    if (isEditing) {
+    if (shipmentToEdit) {
       const client = clients.find(c => c.id === shipmentToEdit.clientId);
-      const destinationParts = shipmentToEdit.destination.split(',');
-      const street = destinationParts[0]?.trim();
-      const city = destinationParts.length > 1 ? destinationParts.slice(1).join(',').trim() : '';
-
-      setFormData({
-        ...initialFormState,
-        ...shipmentToEdit,
-        clientName: client ? `${client.name} (Cliente)` : '',
-        destination: street,
-        poblacion: city,
-        senderPaymentCollected: !!shipmentToEdit.senderPaymentCollectedAt,
-      });
+      
+      // Caso 1: Es una conversión de una recogida a un albarán nuevo.
+      // No tiene 'id' pero sí 'clientId'.
+      if (!shipmentToEdit.id && shipmentToEdit.clientId) {
+        setFormData({
+          ...initialFormState,
+          clientId: shipmentToEdit.clientId,
+          clientName: client ? `${client.name} (Cliente)` : '',
+          // Heredamos los bultos de la recogida si existen
+          items: shipmentToEdit.items || 1,
+          observations: '', // Limpiamos las observaciones para que no herede "RECOGIDA: ..."
+        });
+      } 
+      // Caso 2: Es una edición de un albarán existente.
+      else if (isEditing) {
+        const destinationParts = shipmentToEdit.destination?.split(',') || ['', ''];
+        const street = destinationParts[0]?.trim();
+        const city = destinationParts.length > 1 ? destinationParts.slice(1).join(',').trim() : '';
+        setFormData({
+          ...initialFormState, ...shipmentToEdit,
+          clientName: client ? `${client.name} (Cliente)` : '',
+          destination: street, poblacion: city,
+          senderPaymentCollected: !!shipmentToEdit.senderPaymentCollectedAt,
+        });
+      }
     } else {
       setFormData(initialFormState);
     }
@@ -237,6 +250,12 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
     const isDailySenderUnpaid = showSenderPayment && !formData.senderPaymentCollected;
     console.log(`ShipmentModal: ¿Es un remitente de cobro diario sin pagar? -> ${isDailySenderUnpaid}`);
 
+    // Lógica para determinar si es un destinatario de cobro diario sin pagar
+    const isDailyRecipientUnpaid =
+      formData.shippingPayer === 'destinatario' &&
+      isNewRecipient &&
+      formData.isRecipientFreeTextDailyPayer;
+
     let shipmentData = {
       ...formData,
       clientId: finalClientId,
@@ -252,23 +271,25 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
       paymentCollectedBy: formData.senderPaymentCollected ? currentUser.id : null
     };
 
-    // Lógica de estado y asignación de transportista para NUEVOS albaranes
-    if (!isEditing) {
-      if (isDailySenderUnpaid) {
-        // Si es un remitente diario y no ha pagado, el estado es 'Cobro Pendiente' y no se asigna transportista
+    // Lógica de estado y asignación de transportista.
+    // Se aplica tanto para albaranes nuevos como para recogidas que se convierten en albaranes.
+    const isNewOrPickupConversion = !isEditing || shipmentToEdit.recipient === "RECOGIDA PENDIENTE DE DESTINO";
+
+    if (isNewOrPickupConversion) {      
+      // Si es una recogida que se convierte, siempre va a 'Pendiente de Asignar'.
+      if (shipmentToEdit?.recipient === "RECOGIDA PENDIENTE DE DESTINO") {
+        shipmentData.status = 'Pendiente';
+        shipmentData.driverId = null; // Forzar que no tenga transportista
+        shipmentData.observations = formData.observations.replace(/^RECOGIDA: /, ''); // Limpiar la observación inicial
+      } else if (isDailySenderUnpaid || isDailyRecipientUnpaid) {
         shipmentData.status = 'Cobro Pendiente';
         shipmentData.driverId = null;
       } else if (isClientUser && currentUser.defaultDriverId) {
-        // Si es un cliente con transportista por defecto (y no es de cobro pendiente)
         shipmentData.driverId = currentUser.defaultDriverId;
         shipmentData.status = 'Pendiente';
       } else {
-        // Caso general para nuevos albaranes (admin sin transportista asignado, etc.)
         shipmentData.status = 'Pendiente';
       }
-    } else {
-      // Si estamos editando, mantenemos el estado que ya tenía
-      shipmentData.status = shipmentToEdit.status;
     }
 
     // Para clientes, el coste del porte es siempre 0
@@ -278,7 +299,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
     }
 
     // Si el pago del remitente está pendiente (y es un nuevo albarán), forzamos que no tenga transportista para que aparezca en "Pendiente de Asignar".
-    if (!isEditing && isDailySenderUnpaid) {
+    if (isNewOrPickupConversion && (isDailySenderUnpaid || isDailyRecipientUnpaid)) {
       shipmentData.driverId = null;
     }
 
@@ -293,17 +314,23 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    const isDailyRecipientUnpaid = formData.shippingPayer === 'destinatario' && isNewRecipient && formData.isRecipientFreeTextDailyPayer;
+
     if (formData.senderPaymentCollected && !isEditing) {
-      setShowSenderPaymentAlert(true);
+      setShowPaymentOriginAlert(true);
     } else if (showSenderPayment && !formData.senderPaymentCollected && !isEditing) {
       setShowSenderForgotAlert(true);
+    } else if (isDailyRecipientUnpaid && !isEditing) {
+      // Si es un destinatario de cobro diario, se guarda directamente y se pone en 'Cobro Pendiente'
+      // No necesita una alerta de confirmación como el remitente, ya que el cobro es en destino.
+      runSave();
     } else {
       runSave();
     }
   };
 
   const handleConfirmSenderPayment = () => {
-    setShowSenderPaymentAlert(false);
+    setShowPaymentOriginAlert(false);
     runSave();
   };
 
@@ -321,7 +348,7 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
           <button onClick={onCancel} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
           <h3 className="text-2xl font-bold mb-4 text-white">{isPickupMode ? 'Registrar Recogida' : (isEditing ? 'Editar' : 'Crear') + ' Albarán'}</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isClientUser && (
+            {!isClientUser && !isPickupMode && (
               <select
                 name="driverId"
                 value={formData.driverId || ''}
@@ -407,13 +434,15 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
             <div>
               <textarea name="observations" value={formData.observations} onChange={handleChange} placeholder="Observaciones..." className="w-full bg-gray-700 text-white p-2 rounded-lg border-gray-600 h-24"></textarea>
             </div>
-            <div>
-              <button type="button" onClick={() => merchandisePhotoInputRef.current.click()} className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg">
-                <Camera size={18} />{formData.merchandisePhoto ? 'Cambiar Foto' : 'Foto Mercancía'}
-              </button>
-              <input type="file" accept="image/*" ref={merchandisePhotoInputRef} onChange={handlePhotoUpload} className="hidden" />
-              {formData.merchandisePhoto && <img src={formData.merchandisePhoto} alt="Vista previa" className="mt-4 rounded-lg max-h-40 mx-auto" />}
-            </div>
+            {!isPickupMode && (
+              <div>
+                <button type="button" onClick={() => merchandisePhotoInputRef.current.click()} className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg">
+                  <Camera size={18} />{formData.merchandisePhoto ? 'Cambiar Foto' : 'Foto Mercancía'}
+                </button>
+                <input type="file" accept="image/*" ref={merchandisePhotoInputRef} onChange={handlePhotoUpload} className="hidden" />
+                {formData.merchandisePhoto && <img src={formData.merchandisePhoto} alt="Vista previa" className="mt-4 rounded-lg max-h-40 mx-auto" />}
+              </div>
+            )}
             <div className="pt-4">
               <button type="submit" className={`w-full text-white font-bold py-3 px-4 rounded-lg ${isPickupMode ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
                 {isPickupMode ? 'Confirmar Recogida' : (isEditing ? 'Guardar Cambios' : 'Generar Albarán')}
@@ -422,12 +451,12 @@ const ShipmentModal = ({ isOpen, onCancel, onSave, shipmentToEdit, clients, reci
           </form>
         </Card>
       </div>
-      {showSenderPaymentAlert && (
-        <SenderPaymentConfirmModal
+      {showPaymentOriginAlert && (
+        <PaymentOriginAlertModal
           clientName={formData.clientName}
           shippingCost={parseFloat(formData.shippingCost) || 0}
           onConfirm={handleConfirmSenderPayment}
-          onCancel={() => setShowSenderPaymentAlert(false)}
+          onCancel={() => setShowPaymentOriginAlert(false)}
         />
       )}
       {showSenderForgotAlert && (

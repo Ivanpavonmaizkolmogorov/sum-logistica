@@ -249,6 +249,16 @@ export default function App() {
     openCreateShipmentModal();
   };
 
+  // Nueva función para convertir una recogida en un albarán
+  const handleConvertToShipment = (pickup) => {
+    // Pre-rellenamos un objeto de albarán con los datos del cliente de la recogida
+    const shipmentFromPickup = {
+      clientId: pickup.clientId,
+      items: pickup.items, // Heredamos los bultos
+    };
+    openEditShipmentModal(shipmentFromPickup); // Abrimos el modal con los datos pre-rellenados
+  };
+
   const openCreateClientModal = () => { setClientToEdit(null); setIsClientModalOpen(true); };
   const openEditClientModal = (client) => { setClientToEdit(client); setIsClientModalOpen(true); };
   const closeClientModal = () => { setIsClientModalOpen(false); setClientToEdit(null); };
@@ -328,6 +338,7 @@ export default function App() {
                 driver={activeUser} shipments={shipments} pickups={pickups} clients={clients} drivers={drivers}
                 onUpdateShipment={handleUpdateShipmentStatus} onCreateShipment={openCreateShipmentModal}
                 onEditShipment={openEditShipmentModal} onCreatePickup={openCreatePickupModal} appSettings={appSettings}
+                onConvertToShipment={handleConvertToShipment} // <-- Nueva prop
               />
             ) : null
           }
